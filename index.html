@@ -1,0 +1,8745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小卖部收银系统 - 摄像头扫码版</title>
+    <!-- 引入 QuaggaJS 条形码扫描库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧商品管理 */
+        .sidebar {
+            width: 320px;
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: #1890ff;
+            color: white;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .add-product-form {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            border-color: #1890ff;
+            outline: none;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-scan {
+            background: #722ed1;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn-scan:hover {
+            background: #9254de;
+        }
+
+        .btn-scan.active {
+            background: #52c41a;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .product-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .product-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f6ffed;
+            border-radius: 6px;
+            border-left: 3px solid #52c41a;
+        }
+
+        .product-info h4 {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .product-info p {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .product-info .barcode {
+            font-size: 10px;
+            color: #999;
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        .product-price {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f5222d;
+        }
+
+        /* 右侧收银台 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cashier-header {
+            background: #fff;
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 15px;
+            font-size: 16px;
+            border: 2px solid #1890ff;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .search-box input.scanning {
+            border-color: #52c41a;
+            background: #f6ffed;
+        }
+
+        .search-hint {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 12px;
+        }
+
+        .scan-status {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #52c41a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            display: none;
+        }
+
+        .scan-status.active {
+            display: block;
+        }
+
+        .cart-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .cart-table {
+            width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .cart-table th,
+        .cart-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .cart-table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .cart-table tr:hover {
+            background: #fafafa;
+        }
+
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantity-control button {
+            width: 28px;
+            height: 28px;
+            border: 1px solid #d9d9d9;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .quantity-control span {
+            min-width: 30px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .checkout-area {
+            background: #fff;
+            padding: 20px;
+            border-top: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-info {
+            display: flex;
+            gap: 30px;
+        }
+
+        .total-item {
+            text-align: center;
+        }
+
+        .total-item .label {
+            font-size: 14px;
+            color: #666;
+            display: block;
+        }
+
+        .total-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #f5222d;
+        }
+
+        .checkout-btn {
+            padding: 15px 40px;
+            font-size: 18px;
+            background: #52c41a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+        }
+
+        .checkout-btn:hover {
+            background: #73d13d;
+            transform: translateY(-2px);
+        }
+
+        .checkout-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            min-width: 400px;
+            max-width: 90%;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .payment-input {
+            margin: 20px 0;
+        }
+
+        .payment-input label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .payment-input input {
+            width: 100%;
+            padding: 12px;
+            font-size: 24px;
+            border: 2px solid #1890ff;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .change-display {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f6ffed;
+            border-radius: 8px;
+        }
+
+        .change-display .amount {
+            font-size: 36px;
+            color: #52c41a;
+            font-weight: bold;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        /* 快捷操作提示 */
+        .shortcuts {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .empty-cart {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+        }
+
+        .empty-cart-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        /* 交易记录 */
+        .history-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 340px;
+            padding: 10px 20px;
+            background: #722ed1;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(114, 46, 209, 0.4);
+        }
+
+        .history-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .history-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .history-amount {
+            font-weight: bold;
+            color: #f5222d;
+        }
+    
+        /* 数据管理面板 - 最小化设计，位于左下角 */
+        .data-manager {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #fff;
+            padding: 10px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .data-manager.collapsed .data-actions {
+            display: none;
+        }
+
+        .data-manager.collapsed .data-status {
+            display: none;
+        }
+
+        .data-manager h4 {
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+            font-weight: normal;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-manager h4:hover {
+            color: #1890ff;
+        }
+
+        .data-status {
+            font-size: 11px;
+            color: #999;
+            padding: 2px 8px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .data-status.connected {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .data-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .data-actions button {
+            padding: 4px 10px;
+            font-size: 11px;
+            border: 1px solid #d9d9d9;
+            background: #fff;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .data-actions button:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .data-actions button.primary {
+            background: #1890ff;
+            color: white;
+            border-color: #1890ff;
+        }
+
+        .data-toggle {
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .data-toggle:hover {
+            background: #f0f0f0;
+        }
+
+        /* 文件夹选择提示 */
+        .folder-prompt {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .folder-prompt.active {
+            display: flex;
+        }
+
+        .folder-prompt-content {
+            background: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .folder-prompt-content h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .folder-prompt-content p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        /* 搜索结果下拉框 */
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 2px solid #1890ff;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+        }
+
+        .search-dropdown.active {
+            display: block;
+        }
+
+        .search-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .search-item:hover,
+        .search-item.selected {
+            background: #e6f7ff;
+        }
+
+        .search-item.selected {
+            background: #1890ff;
+            color: white;
+        }
+
+        .search-item.selected .search-item-price {
+            color: white;
+        }
+
+        .search-item-info {
+            flex: 1;
+        }
+
+        .search-item-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .search-item-code {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+
+        .search-item-barcode {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-top: 2px;
+            font-family: monospace;
+        }
+
+        .search-item-price {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f5222d;
+        }
+
+        .no-results {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+        }
+
+        /* 扫描提示 */
+        .scan-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #52c41a;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 3000;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .scan-toast.active {
+            display: block;
+        }
+
+        .scan-toast.error {
+            background: #ff4d4f;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 条形码扫描弹窗 */
+        .barcode-input-area {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .barcode-input-area input {
+            width: 100%;
+            padding: 15px;
+            font-size: 20px;
+            border: 2px solid #d9d9d9;
+            border-radius: 6px;
+            text-align: center;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+
+        .barcode-input-area input:focus {
+            border-color: #1890ff;
+            outline: none;
+        }
+
+        .barcode-hint {
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        /* 摄像头扫描弹窗 */
+        .scanner-modal .modal-content {
+            min-width: 640px;
+            max-width: 800px;
+        }
+
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #scanner-video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .scanner-line {
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            top: 50%;
+            height: 2px;
+            background: #52c41a;
+            box-shadow: 0 0 10px #52c41a, 0 0 20px #52c41a;
+            animation: scanLine 2s linear infinite;
+        }
+
+        @keyframes scanLine {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .scanner-frame {
+            position: absolute;
+            left: 15%;
+            right: 15%;
+            top: 25%;
+            bottom: 25%;
+            border: 2px dashed rgba(82, 196, 26, 0.6);
+            border-radius: 8px;
+        }
+
+        .scanner-frame::before,
+        .scanner-frame::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: #52c41a;
+            border-style: solid;
+        }
+
+        .scanner-frame::before {
+            top: -2px;
+            left: -2px;
+            border-width: 3px 0 0 3px;
+        }
+
+        .scanner-frame::after {
+            bottom: -2px;
+            right: -2px;
+            border-width: 0 3px 3px 0;
+        }
+
+        .scanner-status {
+            text-align: center;
+            padding: 15px;
+            background: #f6ffed;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .scanner-status.scanning {
+            background: #e6f7ff;
+        }
+
+        .scanner-status.success {
+            background: #f6ffed;
+        }
+
+        .scanner-status.error {
+            background: #fff2f0;
+        }
+
+        .scanner-status-text {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .scanner-barcode {
+            font-family: monospace;
+            font-size: 24px;
+            color: #1890ff;
+            margin-top: 10px;
+            letter-spacing: 2px;
+        }
+
+        .camera-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 扫描提示 -->
+    <div class="scan-toast" id="scanToast">
+        <span id="scanToastText">已扫描: 6914068055244</span>
+    </div>
+
+    <!-- 文件夹选择提示 -->
+    <div class="folder-prompt" id="folderPrompt">
+        <div class="folder-prompt-content">
+            <h2>📁 选择数据文件夹</h2>
+            <p>请选择（或创建）一个文件夹来存储商品数据和交易记录。<br>
+            系统将在该文件夹中创建 products.json 和 history.json 文件。</p>
+            <button class="btn btn-primary" onclick="selectDataFolder()" style="padding: 12px 30px; font-size: 16px; margin: 10px;">选择文件夹</button>
+            <button class="btn" onclick="useMemoryMode()" style="padding: 12px 30px; font-size: 16px; margin: 10px; background: #f0f0f0;">暂不选择</button>
+        </div>
+    </div>
+
+    <!-- 数据管理面板 - 最小化设计 -->
+    <div class="data-manager collapsed" id="dataManager" style="display: none;">
+        <div class="data-toggle" onclick="toggleDataManager()" title="点击展开/折叠">💾</div>
+        <div class="data-status" id="dataStatus">未连接</div>
+        <div class="data-actions">
+            <button onclick="selectDataFolder()" title="更换数据文件夹">📂</button>
+            <button onclick="exportData()" title="导出备份">📥</button>
+            <button onclick="importData()" title="导入备份">📤</button>
+            <button class="primary" onclick="saveDataToFile()" title="立即保存">💾</button>
+        </div>
+    </div>
+    <div class="container">
+        <!-- 左侧：商品库管理 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>🛍️ 商品库管理</h2>
+                <p style="font-size: 12px; opacity: 0.9;">共 <span id="productCount">0</span> 件商品</p>
+            </div>
+
+            <div class="add-product-form">
+                <div class="form-group">
+                    <label>商品名称</label>
+                    <input type="text" id="newProductName" placeholder="如：可乐" oninput="autoGenerateCode(this.value)">
+                </div>
+                <div class="form-group">
+                    <label>价格（元）</label>
+                    <input type="number" id="newProductPrice" placeholder="3.50" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>快捷码（自动生成）</label>
+                    <input type="text" id="newProductCode" placeholder="如：kl" readonly>
+                </div>
+                <div class="form-group">
+                    <label>条形码（可选）</label>
+                    <input type="text" id="newProductBarcode" placeholder="如：6914068055244" maxlength="13">
+                </div>
+                <button class="btn btn-primary" onclick="addProduct()">➕ 添加商品</button>
+            </div>
+
+            <!-- 排序选项 -->
+            <div class="sort-options" style="display: flex; gap: 10px; margin-bottom: 15px; padding: 10px; background: #f5f5f5; border-radius: 6px; align-items: center;">
+                <span style="font-size: 13px; color: #666;">排序方式：</span>
+                <select id="sortBy" onchange="renderProductList()" style="padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px;">
+                    <option value="name">名称首字母</option>
+                    <option value="price">价格</option>
+                </select>
+                <select id="sortOrder" onchange="renderProductList()" style="padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px;">
+                    <option value="asc">升序 ↑</option>
+                    <option value="desc">降序 ↓</option>
+                </select>
+            </div>
+
+            <div class="product-list" id="productList">
+                <!-- 商品列表动态生成 -->
+            </div>
+        </div>
+
+        <!-- 右侧：收银台 -->
+        <div class="main-content">
+            <div class="cashier-header">
+                <div class="search-box">
+                    <span class="scan-status" id="scanStatus">📷 扫描中...</span>
+                    <input type="text" id="searchInput"
+                           placeholder="输入商品名称、拼音首字母或扫码..."
+                           oninput="searchProducts(this.value)"
+                           onkeydown="handleSearchKeydown(event)"
+                           onkeypress="handleBarcodeScan(event)">
+                    <span class="search-hint">按↑↓选择，回车添加</span>
+                    <div class="search-dropdown" id="searchDropdown">
+                        <!-- 搜索结果动态生成 -->
+                    </div>
+                </div>
+                <button class="btn btn-scan" id="scanBtn" onclick="openScannerModal()" title="打开摄像头扫码">
+                    📷 扫码
+                </button>
+                <button class="btn btn-danger" onclick="clearCart()">清空购物车</button>
+            </div>
+
+            <div class="cart-area">
+                <table class="cart-table" id="cartTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>商品名称</th>
+                            <th>单价</th>
+                            <th>数量</th>
+                            <th>小计</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartBody">
+                        <!-- 购物车内容 -->
+                    </tbody>
+                </table>
+                <div class="empty-cart" id="emptyCart">
+                    <div class="empty-cart-icon">🛒</div>
+                    <p>购物车是空的</p>
+                    <p style="font-size: 14px; margin-top: 10px;">在上方搜索框输入商品名称、拼音首字母</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 5px;">或点击「📷 扫码」按钮使用摄像头扫描条形码</p>
+                </div>
+            </div>
+
+            <div class="checkout-area">
+                <div class="total-info">
+                    <div class="total-item">
+                        <span class="label">商品总数</span>
+                        <span class="value" id="totalItems" style="color: #333;">0</span>
+                    </div>
+                    <div class="total-item">
+                        <span class="label">合计金额</span>
+                        <span class="value">¥<span id="totalPrice">0.00</span></span>
+                    </div>
+                </div>
+                <button class="checkout-btn" id="checkoutBtn" onclick="openCheckout()" disabled>
+                    💰 结算 (Space)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结算弹窗 -->
+    <div class="modal" id="checkoutModal">
+        <div class="modal-content">
+            <div class="modal-header">💰 收款结算</div>
+            <div class="payment-input">
+                <label>实收金额（元）</label>
+                <input type="number" id="paymentInput" step="0.01" placeholder="0.00" oninput="calculateChange()">
+            </div>
+            <div class="change-display">
+                <div style="font-size: 14px; color: #666; margin-bottom: 10px;">找零金额</div>
+                <div class="amount" id="changeAmount">¥0.00</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal()" style="background: #f0f0f0;">取消</button>
+                <button class="btn btn-success" onclick="completeCheckout()">✅ 完成交易</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交易记录弹窗 -->
+    <div class="modal" id="historyModal">
+        <div class="modal-content" style="min-width: 500px;">
+            <div class="modal-header" style="cursor: move; user-select: none;">📋 今日交易记录</div>
+            <div class="history-list" id="historyList">
+                <!-- 历史记录 -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeHistory()" style="background: #f0f0f0;">关闭</button>
+                <button class="btn btn-danger" onclick="clearHistory()">清空记录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 摄像头扫描弹窗 -->
+    <div class="modal scanner-modal" id="scannerModal">
+        <div class="modal-content">
+            <div class="modal-header">📷 扫描条形码</div>
+            <select class="camera-select" id="cameraSelect" onchange="switchCamera()">
+                <option value="">选择摄像头...</option>
+            </select>
+            <div class="scanner-container">
+                <div id="scanner-video"></div>
+                <div class="scanner-overlay">
+                    <div class="scanner-frame"></div>
+                    <div class="scanner-line"></div>
+                </div>
+            </div>
+            <div class="scanner-status" id="scannerStatus">
+                <div class="scanner-status-text">请将条形码对准摄像头</div>
+                <div class="scanner-barcode" id="scannerBarcode"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeScannerModal()" style="background: #f0f0f0;">关闭</button>
+                <button class="btn btn-primary" onclick="manualEnterBarcode()">⌨️ 手动输入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 条形码绑定弹窗 -->
+    <div class="modal" id="barcodeBindModal">
+        <div class="modal-content">
+            <div class="modal-header">🔗 绑定条形码</div>
+            <p style="color: #666; margin-bottom: 15px;">扫描到未识别的条形码，请选择要绑定的商品：</p>
+            <div class="barcode-input-area">
+                <input type="text" id="bindBarcodeInput" readonly>
+                <div class="barcode-hint">扫描的条形码</div>
+            </div>
+            <div class="form-group">
+                <label>选择商品</label>
+                <select id="bindProductSelect" style="width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px;">
+                    <!-- 商品选项动态生成 -->
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeBarcodeBindModal()" style="background: #f0f0f0;">取消</button>
+                <button class="btn btn-primary" onclick="confirmBarcodeBind()">🔗 绑定</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="history-btn" onclick="showHistory()">📋 交易记录</button>
+
+    <div class="shortcuts">
+        <strong>快捷键：</strong><br>
+        Space - 结算<br>
+        ↑↓ - 选择商品<br>
+        Enter - 确认添加<br>
+        ESC - 关闭弹窗/下拉框
+    </div>
+
+    <script>
+        // 数据存储
+        let products = [
+            { id: 1, name: '可乐', price: 3.50, code: 'kl', barcode: '' },
+            { id: 2, name: '雪碧', price: 3.50, code: 'xb', barcode: '' },
+            { id: 3, name: '矿泉水', price: 2.00, code: 'kqs', barcode: '' },
+            { id: 4, name: '方便面', price: 4.50, code: 'fbm', barcode: '' },
+            { id: 5, name: '火腿肠', price: 2.00, code: 'htc', barcode: '' },
+            { id: 6, name: '薯片', price: 6.00, code: 'sp', barcode: '' },
+            { id: 7, name: '巧克力', price: 8.00, code: 'qkl', barcode: '' },
+            { id: 8, name: '口香糖', price: 2.50, code: 'kxt', barcode: '' },
+            { id: 9, name: '洁柔纸巾', price: 5.00, code: 'jrzj', barcode: '6914068055244' }
+        ];
+
+        let cart = [];
+        let history = [];
+        let searchResults = [];
+        let selectedIndex = -1;
+
+        // 条形码扫描相关
+        let barcodeBuffer = '';
+        let lastKeyTime = 0;
+        const SCAN_TIMEOUT = 100; // 扫描枪输入间隔阈值（毫秒）
+        let lastDetectedBarcode = null; // 记录上次扫描的条形码
+        let lastDetectedTime = 0; // 记录上次扫描的时间
+
+        // 摄像头扫描相关
+        let isScanning = false;
+        let currentCamera = null;
+
+        // 文件系统相关
+        let directoryHandle = null;
+        let dataFileHandle = null;
+        let historyFileHandle = null;
+        let useFileSystem = false;
+        const DATA_FILENAME = 'products.json';
+        const HISTORY_FILENAME = 'history.json';
+
+        
+        // ========== 摄像头条形码扫描功能 ==========
+
+        // 打开扫描弹窗
+        async function openScannerModal() {
+            const modal = document.getElementById('scannerModal');
+            modal.classList.add('active');
+            
+            // 获取可用摄像头列表
+            await getCameraList();
+            
+            // 如果有摄像头，自动开始扫描
+            if (document.getElementById('cameraSelect').options.length > 1) {
+                startScanner();
+            }
+        }
+
+        // 关闭扫描弹窗
+        function closeScannerModal() {
+            const modal = document.getElementById('scannerModal');
+            modal.classList.remove('active');
+            stopScanner();
+        }
+
+        // 获取摄像头列表
+        async function getCameraList() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                
+                const select = document.getElementById('cameraSelect');
+                select.innerHTML = '<option value="">选择摄像头...</option>';
+                
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `摄像头 ${index + 1}`;
+                    select.appendChild(option);
+                });
+                
+                // 默认选择后置摄像头（通常包含 "back" 或 "rear"）
+                const backCamera = videoDevices.find(d => 
+                    d.label.toLowerCase().includes('back') || 
+                    d.label.toLowerCase().includes('rear') ||
+                    d.label.toLowerCase().includes('后置')
+                );
+                
+                if (backCamera) {
+                    select.value = backCamera.deviceId;
+                } else if (videoDevices.length > 0) {
+                    select.value = videoDevices[0].deviceId;
+                }
+                
+            } catch (err) {
+                console.error('获取摄像头列表失败:', err);
+                updateScannerStatus('error', '无法获取摄像头列表，请检查权限设置');
+            }
+        }
+
+        // 切换摄像头
+        function switchCamera() {
+            stopScanner();
+            const cameraId = document.getElementById('cameraSelect').value;
+            if (cameraId) {
+                startScanner(cameraId);
+            }
+        }
+
+        // 开始扫描
+        function startScanner(cameraId) {
+            if (isScanning) return;
+            
+            const selectedCamera = cameraId || document.getElementById('cameraSelect').value;
+            
+            updateScannerStatus('scanning', '正在启动摄像头...');
+            
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector('#scanner-video'),
+                    constraints: {
+                        width: { min: 640, ideal: 1280, max: 1920 },
+                        height: { min: 480, ideal: 720, max: 1080 },
+                        deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
+                        facingMode: selectedCamera ? undefined : "environment"
+                    },
+                },
+                locator: {
+                    patchSize: "medium",
+                    halfSample: true
+                },
+                numOfWorkers: navigator.hardwareConcurrency || 4,
+                frequency: 10,
+                decoder: {
+                    readers: [
+                        "code_128_reader",
+                        "ean_reader",
+                        "ean_8_reader",
+                        "code_39_reader",
+                        "code_39_vin_reader",
+                        "codabar_reader",
+                        "upc_reader",
+                        "upc_e_reader",
+                        "i2of5_reader"
+                    ]
+                },
+                locate: true
+            }, function(err) {
+                if (err) {
+                    console.error('Quagga 初始化失败:', err);
+                    updateScannerStatus('error', '摄像头启动失败: ' + err.message);
+                    return;
+                }
+                
+                isScanning = true;
+                Quagga.start();
+                updateScannerStatus('scanning', '请将条形码对准摄像头');
+                
+                // 监听扫描结果
+                Quagga.onDetected(onBarcodeDetected);
+            });
+        }
+
+        // 停止扫描
+        function stopScanner() {
+            if (!isScanning) return;
+            
+            Quagga.stop();
+            Quagga.offDetected(onBarcodeDetected);
+            isScanning = false;
+        }
+
+        // 扫描到条形码回调
+        function onBarcodeDetected(result) {
+            const code = result.codeResult.code;
+            const format = result.codeResult.format;
+            
+            // 防抖：如果和上次扫描结果相同且间隔小于 2 秒，忽略
+            const now = Date.now();
+            if (code === lastDetectedBarcode && (now - lastDetectedTime) < 2000) {
+                return;
+            }
+            
+            lastDetectedBarcode = code;
+            lastDetectedTime = now;
+            
+            console.log('扫描到条形码:', code, '格式:', format);
+            
+            // 显示扫描到的条形码
+            document.getElementById('scannerBarcode').textContent = code;
+            updateScannerStatus('success', `已识别 (${format})`);
+            
+            // 播放提示音
+            playBeepSound();
+            
+            // 延迟更长时间再关闭弹窗，让用户看清结果
+            setTimeout(() => {
+                closeScannerModal();
+                processBarcode(code);
+            }, 1500);
+        }
+
+        // 播放扫描成功提示音
+        function playBeepSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 1000;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (err) {
+                console.log('播放提示音失败:', err);
+            }
+        }
+
+        // 更新扫描状态显示
+        function updateScannerStatus(status, message) {
+            const statusEl = document.getElementById('scannerStatus');
+            const textEl = statusEl.querySelector('.scanner-status-text');
+            
+            statusEl.className = 'scanner-status ' + status;
+            textEl.textContent = message;
+        }
+
+        // 手动输入条形码
+        function manualEnterBarcode() {
+            const code = prompt('请输入条形码:');
+            if (code && code.trim()) {
+                closeScannerModal();
+                processBarcode(code.trim());
+            }
+        }
+
+        // ========== 条形码处理功能 ==========
+
+        // 处理条形码（扫描枪或摄像头）
+        function processBarcode(barcode) {
+            console.log('处理条形码:', barcode);
+            
+            // 清理条形码
+            barcode = barcode.trim();
+            
+            // 验证条形码格式
+            if (!/^[0-9]{8,13}$/.test(barcode)) {
+                showScanToast('无效的条形码格式: ' + barcode, true);
+                return;
+            }
+
+            // 查找商品
+            const product = products.find(p => p.barcode === barcode);
+            
+            if (product) {
+                // 找到商品，添加到购物车
+                addToCart(product);
+                showScanToast(`✅ 已添加: ${product.name} ¥${product.price.toFixed(2)}`, false);
+            } else {
+                // 未找到商品，提示绑定
+                showScanToast('⚠️ 未找到商品: ' + barcode, true);
+                setTimeout(() => {
+                    openBarcodeBindModal(barcode);
+                }, 500);
+            }
+        }
+
+        // 显示扫描提示
+        function showScanToast(message, isError) {
+            const toast = document.getElementById('scanToast');
+            const text = document.getElementById('scanToastText');
+            
+            text.textContent = message;
+            toast.classList.remove('error');
+            if (isError) {
+                toast.classList.add('error');
+            }
+            toast.classList.add('active');
+            
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+
+        // 打开条形码绑定弹窗
+        function openBarcodeBindModal(barcode) {
+            const modal = document.getElementById('barcodeBindModal');
+            const input = document.getElementById('bindBarcodeInput');
+            const select = document.getElementById('bindProductSelect');
+            
+            input.value = barcode;
+            
+            // 生成商品选项
+            select.innerHTML = products.map(p => 
+                `<option value="${p.id}">${p.name} (¥${p.price.toFixed(2)}) ${p.barcode ? '[已绑定]' : ''}</option>`
+            ).join('');
+            
+            modal.classList.add('active');
+        }
+
+        // 关闭条形码绑定弹窗
+        function closeBarcodeBindModal() {
+            document.getElementById('barcodeBindModal').classList.remove('active');
+            document.getElementById('searchInput').focus();
+        }
+
+        // 确认条形码绑定
+        async function confirmBarcodeBind() {
+            const barcode = document.getElementById('bindBarcodeInput').value;
+            const productId = parseInt(document.getElementById('bindProductSelect').value);
+            
+            const product = products.find(p => p.id === productId);
+            if (product) {
+                // 更新商品条形码
+                product.barcode = barcode;
+                await saveProducts();
+                renderProductList();
+                
+                showScanToast(`✅ 已绑定: ${product.name} <=> ${barcode}`, false);
+                
+                // 自动添加到购物车
+                addToCart(product);
+            }
+            
+            closeBarcodeBindModal();
+        }
+
+        // 处理条形码扫描枪输入
+        function handleBarcodeScan(e) {
+            const currentTime = Date.now();
+            
+            // 检测是否为扫描枪快速输入
+            if (currentTime - lastKeyTime < SCAN_TIMEOUT) {
+                if (e.key >= '0' && e.key <= '9') {
+                    barcodeBuffer += e.key;
+                }
+                
+                // Enter键表示扫描结束
+                if (e.key === 'Enter' && barcodeBuffer.length >= 8) {
+                    e.preventDefault();
+                    processBarcode(barcodeBuffer);
+                    barcodeBuffer = '';
+                    return false;
+                }
+            } else {
+                // 普通键盘输入，重置缓冲区
+                barcodeBuffer = '';
+            }
+            
+            lastKeyTime = currentTime;
+        }
+
+        // ========== 文件系统操作函数 ==========
+
+        // 选择数据文件夹
+        async function selectDataFolder() {
+            try {
+                // 请求用户选择文件夹
+                directoryHandle = await window.showDirectoryPicker();
+                useFileSystem = true;
+
+                console.log('已选择文件夹:', directoryHandle.name);
+
+                // 加载或创建数据文件
+                await loadOrCreateFiles();
+
+                // 更新UI
+                document.getElementById('folderPrompt').classList.remove('active');
+                document.getElementById('dataManager').style.display = 'block';
+                updateDataStatus('已连接: ' + directoryHandle.name);
+
+                // 重新渲染
+                renderProductList();
+                updateCart();
+
+                alert('✅ 数据文件夹已连接！\n商品数据将保存到 products.json\n交易记录将保存到 history.json');
+
+            } catch (err) {
+                console.error('选择文件夹失败:', err);
+                if (err.name !== 'AbortError') {
+                    alert('选择文件夹失败: ' + err.message);
+                }
+            }
+        }
+
+        // 加载或创建数据文件
+        async function loadOrCreateFiles() {
+            // 处理 products.json
+            try {
+                dataFileHandle = await directoryHandle.getFileHandle(DATA_FILENAME);
+                const file = await dataFileHandle.getFile();
+                const text = await file.text();
+                const data = JSON.parse(text);
+                if (Array.isArray(data) && data.length > 0) {
+                    // 确保旧数据也有 barcode 字段
+                    products = data.map(p => ({
+                        ...p,
+                        barcode: p.barcode || ''
+                    }));
+                    console.log('✅ 已加载商品数据:', products.length, '条');
+                }
+            } catch (e) {
+                // 文件不存在，创建新文件
+                console.log('创建新的商品数据文件');
+                dataFileHandle = await directoryHandle.getFileHandle(DATA_FILENAME, { create: true });
+                await saveDataToFile();
+            }
+
+            // 处理 history.json
+            try {
+                historyFileHandle = await directoryHandle.getFileHandle(HISTORY_FILENAME);
+                const file = await historyFileHandle.getFile();
+                const text = await file.text();
+                const data = JSON.parse(text);
+                if (Array.isArray(data)) {
+                    history = data;
+                    console.log('✅ 已加载交易记录:', history.length, '条');
+                }
+            } catch (e) {
+                // 文件不存在，创建新文件
+                console.log('创建新的历史记录文件');
+                historyFileHandle = await directoryHandle.getFileHandle(HISTORY_FILENAME, { create: true });
+                await saveHistoryToFile();
+            }
+        }
+
+        // 保存商品数据到文件
+        async function saveDataToFile() {
+            if (!useFileSystem || !dataFileHandle) {
+                console.log('未使用文件系统，保存到 localStorage');
+                localStorage.setItem('products', JSON.stringify(products));
+                return;
+            }
+
+            try {
+                const writable = await dataFileHandle.createWritable();
+                const dataStr = JSON.stringify(products, null, 2);
+                await writable.write(dataStr);
+                await writable.close();
+                console.log('✅ 商品数据已保存到文件');
+                updateDataStatus('已保存: ' + new Date().toLocaleTimeString());
+            } catch (err) {
+                console.error('保存商品数据失败:', err);
+                alert('保存失败: ' + err.message);
+            }
+        }
+
+        // 保存历史记录到文件
+        async function saveHistoryToFile() {
+            if (!useFileSystem || !historyFileHandle) {
+                localStorage.setItem('history', JSON.stringify(history));
+                return;
+            }
+
+            try {
+                const writable = await historyFileHandle.createWritable();
+                const dataStr = JSON.stringify(history, null, 2);
+                await writable.write(dataStr);
+                await writable.close();
+                console.log('✅ 历史记录已保存到文件');
+            } catch (err) {
+                console.error('保存历史记录失败:', err);
+            }
+        }
+
+        // 更新数据状态显示
+        function updateDataStatus(status) {
+            const el = document.getElementById('dataStatus');
+            el.textContent = status;
+            el.classList.add('connected');
+        }
+
+        // 导出备份
+        async function exportData() {
+            const backup = {
+                products: products,
+                history: history,
+                exportTime: new Date().toISOString(),
+                version: '1.2'
+            };
+
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `收银系统备份_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 导入备份
+        async function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+
+                    if (!confirm(`确定导入此备份？当前数据将被覆盖。\n\n商品: ${data.products?.length || 0} 条\n记录: ${data.history?.length || 0} 条`)) {
+                        return;
+                    }
+
+                    if (data.products) {
+                        // 确保导入的数据有 barcode 字段
+                        products = data.products.map(p => ({
+                            ...p,
+                            barcode: p.barcode || ''
+                        }));
+                    }
+                    if (data.history) history = data.history;
+
+                    // 保存到新位置
+                    await saveDataToFile();
+                    await saveHistoryToFile();
+
+                    renderProductList();
+                    updateCart();
+
+                    alert('✅ 数据导入成功！');
+                } catch (err) {
+                    alert('导入失败: ' + err.message);
+                }
+            };
+            input.click();
+        }
+
+        // 使用内存模式（不连接文件系统）
+        function useMemoryMode() {
+            useFileSystem = false;
+            document.getElementById('folderPrompt').classList.remove('active');
+            document.getElementById('dataManager').style.display = 'block';
+            document.getElementById('dataStatus').textContent = '内存模式（刷新后数据丢失）';
+
+            // 尝试从 localStorage 加载
+            const savedProducts = localStorage.getItem('products');
+            const savedHistory = localStorage.getItem('history');
+
+            if (savedProducts) {
+                try {
+                    const data = JSON.parse(savedProducts);
+                    // 确保旧数据也有 barcode 字段
+                    products = data.map(p => ({
+                        ...p,
+                        barcode: p.barcode || ''
+                    }));
+                } catch(e) {}
+            }
+            if (savedHistory) {
+                try {
+                    history = JSON.parse(savedHistory);
+                } catch(e) {}
+            }
+
+            renderProductList();
+            updateCart();
+        }
+        // 切换数据管理面板展开/折叠
+        function toggleDataManager() {
+            const manager = document.getElementById('dataManager');
+            manager.classList.toggle('collapsed');
+        }
+
+
+        // ========== 文件系统操作函数结束 ==========
+
+// 初始化
+        function init() {
+            // 显示文件夹选择提示
+            document.getElementById('folderPrompt').classList.add('active');
+
+            renderProductList();
+            updateCart();
+
+            // 全局键盘监听
+            document.addEventListener('keydown', (e) => {
+                // Space结算（不在搜索框和支付输入框时）
+                if (e.code === 'Space' && 
+                    document.activeElement.id !== 'paymentInput' && 
+                    document.activeElement.id !== 'searchInput' &&
+                    document.activeElement.id !== 'bindBarcodeInput') {
+                    e.preventDefault();
+                    if (cart.length > 0) openCheckout();
+                }
+                // ESC关闭弹窗和下拉框
+                if (e.code === 'Escape') {
+                    closeModal();
+                    closeHistory();
+                    closeBarcodeBindModal();
+                    closeScannerModal();
+                    document.getElementById('searchDropdown').classList.remove('active');
+                }
+            });
+
+            // 点击页面其他地方关闭下拉框
+            document.addEventListener('click', (e) => {
+                const searchBox = document.querySelector('.search-box');
+                if (!searchBox.contains(e.target)) {
+                    document.getElementById('searchDropdown').classList.remove('active');
+                }
+            });
+
+            // 全局条形码扫描监听（用于扫描枪）
+            document.addEventListener('keypress', (e) => {
+                // 如果不在输入框中，也监听扫描
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    handleBarcodeScan(e);
+                }
+            });
+        }
+
+        // 保存商品数据
+        async function saveProducts() {
+            if (useFileSystem) {
+                await saveDataToFile();
+            } else {
+                localStorage.setItem('products', JSON.stringify(products));
+            }
+        }
+
+        // 添加商品
+        async function addProduct() {
+            const name = document.getElementById('newProductName').value.trim();
+            const price = parseFloat(document.getElementById('newProductPrice').value);
+            const code = document.getElementById('newProductCode').value.trim();
+            const barcode = document.getElementById('newProductBarcode').value.trim();
+
+            if (!name || isNaN(price) || price <= 0) {
+                alert('请填写完整的商品信息！');
+                return;
+            }
+
+            // 检查条形码是否已被使用
+            if (barcode) {
+                const existing = products.find(p => p.barcode === barcode);
+                if (existing) {
+                    alert(`条形码 ${barcode} 已被商品 "${existing.name}" 使用！`);
+                    return;
+                }
+            }
+
+            const product = {
+                id: Date.now(),
+                name,
+                price,
+                code: code || pinyinFirstLetters(name),
+                barcode: barcode || ''
+            };
+
+            // 按名称首字母顺序插入
+            const insertIndex = products.findIndex(p => p.name.localeCompare(product.name, 'zh-CN') > 0);
+            if (insertIndex === -1) {
+                products.push(product);
+            } else {
+                products.splice(insertIndex, 0, product);
+            }
+            await saveProducts();
+            renderProductList();
+
+            // 清空表单
+            document.getElementById('newProductName').value = '';
+            document.getElementById('newProductPrice').value = '';
+            document.getElementById('newProductCode').value = '';
+            document.getElementById('newProductBarcode').value = '';
+
+            // 添加到购物车（方便测试）
+            addToCart(product);
+            
+            if (barcode) {
+                showScanToast(`✅ 已添加商品并绑定条形码: ${barcode}`, false);
+            }
+        }
+
+        // 拼音首字母映射表PINYIN_MAP 
+       const PINYIN_MAP = {
+  "一": "y",
+  "乙": "y",
+  "二": "e",
+  "十": "s",
+  "丁": "d",
+  "厂": "c",
+  "七": "q",
+  "卜": "b",
+  "八": "b",
+  "人": "r",
+  "入": "r",
+  "儿": "e",
+  "匕": "b",
+  "几": "j",
+  "九": "j",
+  "刁": "d",
+  "了": "l",
+  "刀": "d",
+  "力": "l",
+  "乃": "n",
+  "又": "y",
+  "三": "s",
+  "干": "g",
+  "于": "y",
+  "亏": "k",
+  "工": "g",
+  "土": "t",
+  "士": "s",
+  "才": "c",
+  "下": "x",
+  "寸": "c",
+  "大": "d",
+  "丈": "z",
+  "与": "y",
+  "万": "w",
+  "上": "s",
+  "小": "x",
+  "口": "k",
+  "山": "s",
+  "巾": "j",
+  "千": "q",
+  "乞": "q",
+  "川": "c",
+  "亿": "y",
+  "个": "g",
+  "夕": "x",
+  "久": "j",
+  "么": "m",
+  "勺": "s",
+  "凡": "f",
+  "丸": "w",
+  "及": "j",
+  "广": "g",
+  "亡": "w",
+  "门": "m",
+  "丫": "y",
+  "义": "y",
+  "之": "z",
+  "尸": "s",
+  "己": "j",
+  "已": "y",
+  "巳": "s",
+  "弓": "g",
+  "子": "z",
+  "卫": "w",
+  "也": "y",
+  "女": "n",
+  "刃": "r",
+  "飞": "f",
+  "习": "x",
+  "叉": "c",
+  "马": "m",
+  "乡": "x",
+  "丰": "f",
+  "王": "w",
+  "开": "k",
+  "井": "j",
+  "天": "t",
+  "夫": "f",
+  "元": "y",
+  "无": "w",
+  "云": "y",
+  "专": "z",
+  "丐": "g",
+  "扎": "z",
+  "艺": "y",
+  "木": "m",
+  "五": "w",
+  "支": "z",
+  "厅": "t",
+  "不": "b",
+  "犬": "q",
+  "太": "t",
+  "区": "q",
+  "历": "l",
+  "歹": "d",
+  "友": "y",
+  "尤": "y",
+  "匹": "p",
+  "车": "c",
+  "巨": "j",
+  "牙": "y",
+  "屯": "t",
+  "戈": "g",
+  "比": "b",
+  "互": "h",
+  "切": "q",
+  "瓦": "w",
+  "止": "z",
+  "少": "s",
+  "曰": "y",
+  "日": "r",
+  "中": "z",
+  "贝": "b",
+  "冈": "g",
+  "内": "n",
+  "水": "s",
+  "见": "j",
+  "午": "w",
+  "牛": "n",
+  "手": "s",
+  "气": "q",
+  "毛": "m",
+  "壬": "r",
+  "升": "s",
+  "夭": "y",
+  "长": "c",
+  "仁": "r",
+  "什": "s",
+  "片": "p",
+  "仆": "p",
+  "化": "h",
+  "仇": "c",
+  "币": "b",
+  "仍": "r",
+  "仅": "j",
+  "斤": "j",
+  "爪": "z",
+  "反": "f",
+  "介": "j",
+  "父": "f",
+  "从": "c",
+  "仑": "l",
+  "今": "j",
+  "凶": "x",
+  "分": "f",
+  "乏": "f",
+  "公": "g",
+  "仓": "c",
+  "月": "y",
+  "氏": "s",
+  "勿": "w",
+  "欠": "q",
+  "风": "f",
+  "丹": "d",
+  "匀": "y",
+  "乌": "w",
+  "勾": "g",
+  "凤": "f",
+  "六": "l",
+  "文": "w",
+  "亢": "k",
+  "方": "f",
+  "火": "h",
+  "为": "w",
+  "斗": "d",
+  "忆": "y",
+  "计": "j",
+  "订": "d",
+  "户": "h",
+  "认": "r",
+  "冗": "r",
+  "讥": "j",
+  "心": "x",
+  "尺": "c",
+  "引": "y",
+  "丑": "c",
+  "巴": "b",
+  "孔": "k",
+  "队": "d",
+  "办": "b",
+  "以": "y",
+  "允": "y",
+  "予": "y",
+  "邓": "d",
+  "劝": "q",
+  "双": "s",
+  "书": "s",
+  "幻": "h",
+  "玉": "y",
+  "刊": "k",
+  "未": "w",
+  "末": "m",
+  "示": "s",
+  "击": "j",
+  "打": "d",
+  "巧": "q",
+  "正": "z",
+  "扑": "p",
+  "卉": "h",
+  "扒": "b",
+  "功": "g",
+  "扔": "r",
+  "去": "q",
+  "甘": "g",
+  "世": "s",
+  "艾": "a",
+  "古": "g",
+  "节": "j",
+  "本": "b",
+  "术": "s",
+  "可": "k",
+  "丙": "b",
+  "左": "z",
+  "厉": "l",
+  "石": "s",
+  "右": "y",
+  "布": "b",
+  "夯": "h",
+  "戊": "w",
+  "龙": "l",
+  "平": "p",
+  "灭": "m",
+  "轧": "y",
+  "东": "d",
+  "卡": "k",
+  "北": "b",
+  "占": "z",
+  "凸": "t",
+  "卢": "l",
+  "业": "y",
+  "旧": "j",
+  "帅": "s",
+  "归": "g",
+  "旦": "d",
+  "目": "m",
+  "且": "q",
+  "叶": "y",
+  "甲": "j",
+  "申": "s",
+  "叮": "d",
+  "电": "d",
+  "号": "h",
+  "田": "t",
+  "由": "y",
+  "只": "z",
+  "叭": "b",
+  "史": "s",
+  "央": "y",
+  "兄": "x",
+  "叽": "j",
+  "叼": "d",
+  "叫": "j",
+  "叩": "k",
+  "叨": "d",
+  "另": "l",
+  "叹": "t",
+  "冉": "r",
+  "皿": "m",
+  "凹": "a",
+  "囚": "q",
+  "四": "s",
+  "生": "s",
+  "矢": "s",
+  "失": "s",
+  "乍": "z",
+  "禾": "h",
+  "丘": "q",
+  "付": "f",
+  "仗": "z",
+  "代": "d",
+  "仙": "x",
+  "们": "m",
+  "仪": "y",
+  "白": "b",
+  "仔": "z",
+  "他": "t",
+  "斥": "c",
+  "瓜": "g",
+  "乎": "h",
+  "丛": "c",
+  "令": "l",
+  "用": "y",
+  "甩": "s",
+  "印": "y",
+  "尔": "e",
+  "乐": "l",
+  "句": "j",
+  "匆": "c",
+  "册": "c",
+  "卯": "m",
+  "犯": "f",
+  "外": "w",
+  "处": "c",
+  "冬": "d",
+  "鸟": "n",
+  "务": "w",
+  "包": "b",
+  "饥": "j",
+  "主": "z",
+  "市": "s",
+  "立": "l",
+  "冯": "f",
+  "玄": "x",
+  "闪": "s",
+  "兰": "l",
+  "半": "b",
+  "汁": "z",
+  "汇": "h",
+  "头": "t",
+  "汉": "h",
+  "宁": "n",
+  "穴": "x",
+  "它": "t",
+  "讨": "t",
+  "写": "x",
+  "让": "r",
+  "礼": "l",
+  "训": "x",
+  "议": "y",
+  "必": "b",
+  "讯": "x",
+  "记": "j",
+  "永": "y",
+  "司": "s",
+  "尼": "n",
+  "民": "m",
+  "弗": "f",
+  "弘": "h",
+  "出": "c",
+  "辽": "l",
+  "奶": "n",
+  "奴": "n",
+  "召": "z",
+  "加": "j",
+  "皮": "p",
+  "边": "b",
+  "孕": "y",
+  "发": "f",
+  "圣": "s",
+  "对": "d",
+  "台": "t",
+  "矛": "m",
+  "纠": "j",
+  "母": "m",
+  "幼": "y",
+  "丝": "s",
+  "邦": "b",
+  "式": "s",
+  "迂": "y",
+  "刑": "x",
+  "戎": "r",
+  "动": "d",
+  "扛": "k",
+  "寺": "s",
+  "吉": "j",
+  "扣": "k",
+  "考": "k",
+  "托": "t",
+  "老": "l",
+  "巩": "g",
+  "圾": "j",
+  "执": "z",
+  "扩": "k",
+  "扫": "s",
+  "地": "d",
+  "场": "c",
+  "扬": "y",
+  "耳": "e",
+  "芋": "y",
+  "共": "g",
+  "芒": "m",
+  "亚": "y",
+  "芝": "z",
+  "朽": "x",
+  "朴": "p",
+  "机": "j",
+  "权": "q",
+  "过": "g",
+  "臣": "c",
+  "吏": "l",
+  "再": "z",
+  "协": "x",
+  "西": "x",
+  "压": "y",
+  "厌": "y",
+  "戌": "x",
+  "在": "z",
+  "百": "b",
+  "有": "y",
+  "存": "c",
+  "而": "e",
+  "页": "y",
+  "匠": "j",
+  "夸": "k",
+  "夺": "d",
+  "灰": "h",
+  "达": "d",
+  "列": "l",
+  "死": "s",
+  "成": "c",
+  "夹": "j",
+  "夷": "y",
+  "轨": "g",
+  "邪": "x",
+  "尧": "y",
+  "划": "h",
+  "迈": "m",
+  "毕": "b",
+  "至": "z",
+  "此": "c",
+  "贞": "z",
+  "师": "s",
+  "尘": "c",
+  "尖": "j",
+  "劣": "l",
+  "光": "g",
+  "当": "d",
+  "早": "z",
+  "吁": "x",
+  "吐": "t",
+  "吓": "x",
+  "虫": "c",
+  "曲": "q",
+  "团": "t",
+  "吕": "l",
+  "同": "t",
+  "吊": "d",
+  "吃": "c",
+  "因": "y",
+  "吸": "x",
+  "吗": "m",
+  "吆": "y",
+  "屿": "y",
+  "屹": "y",
+  "岁": "s",
+  "帆": "f",
+  "回": "h",
+  "岂": "q",
+  "则": "z",
+  "刚": "g",
+  "网": "w",
+  "肉": "r",
+  "年": "n",
+  "朱": "z",
+  "先": "x",
+  "丢": "d",
+  "廷": "t",
+  "舌": "s",
+  "竹": "z",
+  "迁": "q",
+  "乔": "q",
+  "迄": "q",
+  "伟": "w",
+  "传": "c",
+  "乒": "p",
+  "乓": "p",
+  "休": "x",
+  "伍": "w",
+  "伏": "f",
+  "优": "y",
+  "臼": "j",
+  "伐": "f",
+  "延": "y",
+  "仲": "z",
+  "件": "j",
+  "任": "r",
+  "伤": "s",
+  "价": "j",
+  "伦": "l",
+  "份": "f",
+  "华": "h",
+  "仰": "y",
+  "仿": "f",
+  "伙": "h",
+  "伪": "w",
+  "自": "z",
+  "伊": "y",
+  "血": "x",
+  "向": "x",
+  "似": "s",
+  "后": "h",
+  "行": "x",
+  "舟": "z",
+  "全": "q",
+  "会": "h",
+  "杀": "s",
+  "合": "h",
+  "兆": "z",
+  "企": "q",
+  "众": "z",
+  "爷": "y",
+  "伞": "s",
+  "创": "c",
+  "肌": "j",
+  "肋": "l",
+  "朵": "d",
+  "杂": "z",
+  "危": "w",
+  "旬": "x",
+  "旨": "z",
+  "旭": "x",
+  "负": "f",
+  "匈": "x",
+  "名": "m",
+  "各": "g",
+  "多": "d",
+  "争": "z",
+  "色": "s",
+  "壮": "z",
+  "冲": "c",
+  "妆": "z",
+  "冰": "b",
+  "庄": "z",
+  "庆": "q",
+  "亦": "y",
+  "刘": "l",
+  "齐": "q",
+  "交": "j",
+  "衣": "y",
+  "次": "c",
+  "产": "c",
+  "决": "j",
+  "亥": "h",
+  "充": "c",
+  "妄": "w",
+  "闭": "b",
+  "问": "w",
+  "闯": "c",
+  "羊": "y",
+  "并": "b",
+  "关": "g",
+  "米": "m",
+  "灯": "d",
+  "州": "z",
+  "汗": "h",
+  "污": "w",
+  "江": "j",
+  "汛": "x",
+  "池": "c",
+  "汝": "r",
+  "汤": "t",
+  "忙": "m",
+  "兴": "x",
+  "宇": "y",
+  "守": "s",
+  "宅": "z",
+  "字": "z",
+  "安": "a",
+  "讲": "j",
+  "讳": "h",
+  "军": "j",
+  "讶": "y",
+  "许": "x",
+  "讹": "e",
+  "论": "l",
+  "讼": "s",
+  "农": "n",
+  "讽": "f",
+  "设": "s",
+  "访": "f",
+  "诀": "j",
+  "寻": "x",
+  "那": "n",
+  "迅": "x",
+  "尽": "j",
+  "导": "d",
+  "异": "y",
+  "弛": "c",
+  "孙": "s",
+  "阵": "z",
+  "阳": "y",
+  "收": "s",
+  "阶": "j",
+  "阴": "y",
+  "防": "f",
+  "奸": "j",
+  "如": "r",
+  "妇": "f",
+  "妃": "f",
+  "好": "h",
+  "她": "t",
+  "妈": "m",
+  "戏": "x",
+  "羽": "y",
+  "观": "g",
+  "欢": "h",
+  "买": "m",
+  "红": "h",
+  "驮": "t",
+  "纤": "x",
+  "驯": "x",
+  "约": "y",
+  "级": "j",
+  "纪": "j",
+  "驰": "c",
+  "纫": "r",
+  "巡": "x",
+  "寿": "s",
+  "弄": "n",
+  "麦": "m",
+  "玖": "j",
+  "玛": "m",
+  "形": "x",
+  "进": "j",
+  "戒": "j",
+  "吞": "t",
+  "远": "y",
+  "违": "w",
+  "韧": "r",
+  "运": "y",
+  "扶": "f",
+  "抚": "f",
+  "坛": "t",
+  "技": "j",
+  "坏": "h",
+  "抠": "k",
+  "扰": "r",
+  "扼": "e",
+  "拒": "j",
+  "找": "z",
+  "批": "p",
+  "址": "z",
+  "扯": "c",
+  "走": "z",
+  "抄": "c",
+  "贡": "g",
+  "汞": "g",
+  "坝": "b",
+  "攻": "g",
+  "赤": "c",
+  "折": "z",
+  "抓": "z",
+  "扳": "b",
+  "抡": "l",
+  "扮": "b",
+  "抢": "q",
+  "孝": "x",
+  "坎": "k",
+  "均": "j",
+  "抑": "y",
+  "抛": "p",
+  "投": "t",
+  "坟": "f",
+  "坑": "k",
+  "抗": "k",
+  "坊": "f",
+  "抖": "d",
+  "护": "h",
+  "壳": "k",
+  "志": "z",
+  "块": "k",
+  "扭": "n",
+  "声": "s",
+  "把": "b",
+  "报": "b",
+  "拟": "n",
+  "却": "q",
+  "抒": "s",
+  "劫": "j",
+  "芙": "f",
+  "芜": "w",
+  "苇": "w",
+  "芽": "y",
+  "花": "h",
+  "芹": "q",
+  "芥": "j",
+  "芬": "f",
+  "苍": "c",
+  "芳": "f",
+  "严": "y",
+  "芦": "l",
+  "芯": "x",
+  "劳": "l",
+  "克": "k",
+  "芭": "b",
+  "苏": "s",
+  "杆": "g",
+  "杠": "g",
+  "杜": "d",
+  "材": "c",
+  "村": "c",
+  "杖": "z",
+  "杏": "x",
+  "杉": "s",
+  "巫": "w",
+  "极": "j",
+  "李": "l",
+  "杨": "y",
+  "求": "q",
+  "甫": "f",
+  "匣": "x",
+  "更": "g",
+  "束": "s",
+  "吾": "w",
+  "豆": "d",
+  "两": "l",
+  "酉": "y",
+  "丽": "l",
+  "医": "y",
+  "辰": "c",
+  "励": "l",
+  "否": "f",
+  "还": "h",
+  "尬": "g",
+  "歼": "j",
+  "来": "l",
+  "连": "l",
+  "轩": "x",
+  "步": "b",
+  "卤": "l",
+  "坚": "j",
+  "肖": "x",
+  "旱": "h",
+  "盯": "d",
+  "呈": "c",
+  "时": "s",
+  "吴": "w",
+  "助": "z",
+  "县": "x",
+  "里": "l",
+  "呆": "d",
+  "吱": "z",
+  "吠": "f",
+  "呕": "o",
+  "园": "y",
+  "旷": "k",
+  "围": "w",
+  "呀": "y",
+  "吨": "d",
+  "足": "z",
+  "邮": "y",
+  "男": "n",
+  "困": "k",
+  "吵": "c",
+  "串": "c",
+  "员": "y",
+  "呐": "n",
+  "听": "t",
+  "吟": "y",
+  "吩": "f",
+  "呛": "q",
+  "吻": "w",
+  "吹": "c",
+  "呜": "w",
+  "吭": "k",
+  "吧": "b",
+  "邑": "y",
+  "吼": "h",
+  "囤": "t",
+  "别": "b",
+  "吮": "s",
+  "岖": "q",
+  "岗": "g",
+  "帐": "z",
+  "财": "c",
+  "针": "z",
+  "钉": "d",
+  "牡": "m",
+  "告": "g",
+  "我": "w",
+  "乱": "l",
+  "利": "l",
+  "秃": "t",
+  "秀": "x",
+  "私": "s",
+  "每": "m",
+  "兵": "b",
+  "估": "g",
+  "体": "t",
+  "何": "h",
+  "佐": "z",
+  "佑": "y",
+  "但": "d",
+  "伸": "s",
+  "佃": "d",
+  "作": "z",
+  "伯": "b",
+  "伶": "l",
+  "佣": "y",
+  "低": "d",
+  "你": "n",
+  "住": "z",
+  "位": "w",
+  "伴": "b",
+  "身": "s",
+  "皂": "z",
+  "伺": "s",
+  "佛": "f",
+  "囱": "c",
+  "近": "j",
+  "彻": "c",
+  "役": "y",
+  "返": "f",
+  "余": "y",
+  "希": "x",
+  "坐": "z",
+  "谷": "g",
+  "妥": "t",
+  "含": "h",
+  "邻": "l",
+  "岔": "c",
+  "肝": "g",
+  "肛": "g",
+  "肚": "d",
+  "肘": "z",
+  "肠": "c",
+  "龟": "g",
+  "甸": "d",
+  "免": "m",
+  "狂": "k",
+  "犹": "y",
+  "狈": "b",
+  "角": "j",
+  "删": "s",
+  "条": "t",
+  "彤": "t",
+  "卵": "l",
+  "灸": "j",
+  "岛": "d",
+  "刨": "p",
+  "迎": "y",
+  "饭": "f",
+  "饮": "y",
+  "系": "x",
+  "言": "y",
+  "冻": "d",
+  "状": "z",
+  "亩": "m",
+  "况": "k",
+  "床": "c",
+  "库": "k",
+  "庇": "b",
+  "疗": "l",
+  "吝": "l",
+  "应": "y",
+  "这": "z",
+  "冷": "l",
+  "庐": "l",
+  "序": "x",
+  "辛": "x",
+  "弃": "q",
+  "冶": "y",
+  "忘": "w",
+  "闰": "r",
+  "闲": "x",
+  "间": "j",
+  "闷": "m",
+  "判": "p",
+  "兑": "d",
+  "灶": "z",
+  "灿": "c",
+  "灼": "z",
+  "弟": "d",
+  "汪": "w",
+  "沐": "m",
+  "沛": "p",
+  "汰": "t",
+  "沥": "l",
+  "沙": "s",
+  "汽": "q",
+  "沃": "w",
+  "沦": "l",
+  "汹": "x",
+  "泛": "f",
+  "沧": "c",
+  "没": "m",
+  "沟": "g",
+  "沪": "h",
+  "沈": "s",
+  "沉": "c",
+  "沁": "q",
+  "怀": "h",
+  "忧": "y",
+  "忱": "c",
+  "快": "k",
+  "完": "w",
+  "宋": "s",
+  "宏": "h",
+  "牢": "l",
+  "究": "j",
+  "穷": "q",
+  "灾": "z",
+  "良": "l",
+  "证": "z",
+  "启": "q",
+  "评": "p",
+  "补": "b",
+  "初": "c",
+  "社": "s",
+  "祀": "s",
+  "识": "s",
+  "诈": "z",
+  "诉": "s",
+  "罕": "h",
+  "诊": "z",
+  "词": "c",
+  "译": "y",
+  "君": "j",
+  "灵": "l",
+  "即": "j",
+  "层": "c",
+  "屁": "p",
+  "尿": "n",
+  "尾": "w",
+  "迟": "c",
+  "局": "j",
+  "改": "g",
+  "张": "z",
+  "忌": "j",
+  "际": "j",
+  "陆": "l",
+  "阿": "a",
+  "陈": "c",
+  "阻": "z",
+  "附": "f",
+  "坠": "z",
+  "妓": "j",
+  "妙": "m",
+  "妖": "y",
+  "姊": "z",
+  "妨": "f",
+  "妒": "d",
+  "努": "n",
+  "忍": "r",
+  "劲": "j",
+  "矣": "y",
+  "鸡": "j",
+  "纬": "w",
+  "驱": "q",
+  "纯": "c",
+  "纱": "s",
+  "纲": "g",
+  "纳": "n",
+  "驳": "b",
+  "纵": "z",
+  "纷": "f",
+  "纸": "z",
+  "纹": "w",
+  "纺": "f",
+  "驴": "l",
+  "纽": "n",
+  "奉": "f",
+  "玩": "w",
+  "环": "h",
+  "武": "w",
+  "青": "q",
+  "责": "z",
+  "现": "x",
+  "玫": "m",
+  "表": "b",
+  "规": "g",
+  "抹": "m",
+  "卦": "g",
+  "坷": "k",
+  "坯": "p",
+  "拓": "t",
+  "拢": "l",
+  "拔": "b",
+  "坪": "p",
+  "拣": "j",
+  "坦": "t",
+  "担": "d",
+  "坤": "k",
+  "押": "y",
+  "抽": "c",
+  "拐": "g",
+  "拖": "t",
+  "者": "z",
+  "拍": "p",
+  "顶": "d",
+  "拆": "c",
+  "拎": "l",
+  "拥": "y",
+  "抵": "d",
+  "拘": "j",
+  "势": "s",
+  "抱": "b",
+  "拄": "z",
+  "垃": "l",
+  "拉": "l",
+  "拦": "l",
+  "幸": "x",
+  "拌": "b",
+  "拧": "n",
+  "拂": "f",
+  "拙": "z",
+  "招": "z",
+  "坡": "p",
+  "披": "p",
+  "拨": "b",
+  "择": "z",
+  "抬": "t",
+  "拇": "m",
+  "拗": "a",
+  "其": "q",
+  "取": "q",
+  "茉": "m",
+  "苦": "k",
+  "昔": "x",
+  "苛": "k",
+  "若": "r",
+  "茂": "m",
+  "苹": "p",
+  "苗": "m",
+  "英": "y",
+  "苟": "g",
+  "苑": "y",
+  "苞": "b",
+  "范": "f",
+  "直": "z",
+  "茁": "z",
+  "茄": "q",
+  "茎": "j",
+  "苔": "t",
+  "茅": "m",
+  "枉": "w",
+  "林": "l",
+  "枝": "z",
+  "杯": "b",
+  "枢": "s",
+  "柜": "g",
+  "枚": "m",
+  "析": "x",
+  "板": "b",
+  "松": "s",
+  "枪": "q",
+  "枫": "f",
+  "构": "g",
+  "杭": "h",
+  "杰": "j",
+  "述": "s",
+  "枕": "z",
+  "丧": "s",
+  "或": "h",
+  "画": "h",
+  "卧": "w",
+  "事": "s",
+  "刺": "c",
+  "枣": "z",
+  "雨": "y",
+  "卖": "m",
+  "郁": "y",
+  "矾": "f",
+  "矿": "k",
+  "码": "m",
+  "厕": "c",
+  "奈": "n",
+  "奔": "b",
+  "奇": "q",
+  "奋": "f",
+  "态": "t",
+  "欧": "o",
+  "殴": "o",
+  "垄": "l",
+  "妻": "q",
+  "轰": "h",
+  "顷": "q",
+  "转": "z",
+  "斩": "z",
+  "轮": "l",
+  "软": "r",
+  "到": "d",
+  "非": "f",
+  "叔": "s",
+  "歧": "q",
+  "肯": "k",
+  "齿": "c",
+  "些": "x",
+  "卓": "z",
+  "虎": "h",
+  "虏": "l",
+  "肾": "s",
+  "贤": "x",
+  "尚": "s",
+  "旺": "w",
+  "具": "j",
+  "味": "w",
+  "果": "g",
+  "昆": "k",
+  "国": "g",
+  "哎": "a",
+  "咕": "g",
+  "昌": "c",
+  "呵": "h",
+  "畅": "c",
+  "明": "m",
+  "易": "y",
+  "咙": "l",
+  "昂": "a",
+  "迪": "d",
+  "典": "d",
+  "固": "g",
+  "忠": "z",
+  "呻": "s",
+  "咒": "z",
+  "咋": "z",
+  "咐": "f",
+  "呼": "h",
+  "鸣": "m",
+  "咏": "y",
+  "呢": "n",
+  "咄": "d",
+  "咖": "k",
+  "岸": "a",
+  "岩": "y",
+  "帖": "t",
+  "罗": "l",
+  "帜": "z",
+  "帕": "p",
+  "岭": "l",
+  "凯": "k",
+  "败": "b",
+  "账": "z",
+  "贩": "f",
+  "贬": "b",
+  "购": "g",
+  "贮": "z",
+  "图": "t",
+  "钓": "d",
+  "制": "z",
+  "知": "z",
+  "迭": "d",
+  "氛": "f",
+  "垂": "c",
+  "牧": "m",
+  "物": "w",
+  "乖": "g",
+  "刮": "g",
+  "秆": "g",
+  "和": "h",
+  "季": "j",
+  "委": "w",
+  "秉": "b",
+  "佳": "j",
+  "侍": "s",
+  "岳": "y",
+  "供": "g",
+  "使": "s",
+  "例": "l",
+  "侠": "x",
+  "侥": "j",
+  "版": "b",
+  "侄": "z",
+  "侦": "z",
+  "侣": "l",
+  "侧": "c",
+  "凭": "p",
+  "侨": "q",
+  "佩": "p",
+  "货": "h",
+  "侈": "c",
+  "依": "y",
+  "卑": "b",
+  "的": "d",
+  "迫": "p",
+  "质": "z",
+  "欣": "x",
+  "征": "z",
+  "往": "w",
+  "爬": "p",
+  "彼": "b",
+  "径": "j",
+  "所": "s",
+  "舍": "s",
+  "金": "j",
+  "刹": "c",
+  "命": "m",
+  "肴": "y",
+  "斧": "f",
+  "爸": "b",
+  "采": "c",
+  "觅": "m",
+  "受": "s",
+  "乳": "r",
+  "贪": "t",
+  "念": "n",
+  "贫": "p",
+  "忿": "f",
+  "肤": "f",
+  "肺": "f",
+  "肢": "z",
+  "肿": "z",
+  "胀": "z",
+  "朋": "p",
+  "股": "g",
+  "肮": "a",
+  "肪": "f",
+  "肥": "f",
+  "服": "f",
+  "胁": "x",
+  "周": "z",
+  "昏": "h",
+  "鱼": "y",
+  "兔": "t",
+  "狐": "h",
+  "忽": "h",
+  "狗": "g",
+  "狞": "n",
+  "备": "b",
+  "饰": "s",
+  "饱": "b",
+  "饲": "s",
+  "变": "b",
+  "京": "j",
+  "享": "x",
+  "庞": "p",
+  "店": "d",
+  "夜": "y",
+  "庙": "m",
+  "府": "f",
+  "底": "d",
+  "疟": "n",
+  "疙": "g",
+  "疚": "j",
+  "剂": "j",
+  "卒": "z",
+  "郊": "j",
+  "庚": "g",
+  "废": "f",
+  "净": "j",
+  "盲": "m",
+  "放": "f",
+  "刻": "k",
+  "育": "y",
+  "氓": "m",
+  "闸": "z",
+  "闹": "n",
+  "郑": "z",
+  "券": "q",
+  "卷": "j",
+  "单": "d",
+  "炬": "j",
+  "炒": "c",
+  "炊": "c",
+  "炕": "k",
+  "炎": "y",
+  "炉": "l",
+  "沫": "m",
+  "浅": "q",
+  "法": "f",
+  "泄": "x",
+  "沽": "g",
+  "河": "h",
+  "沾": "z",
+  "泪": "l",
+  "沮": "j",
+  "油": "y",
+  "泊": "b",
+  "沿": "y",
+  "泡": "p",
+  "注": "z",
+  "泣": "q",
+  "泞": "n",
+  "泻": "x",
+  "泌": "m",
+  "泳": "y",
+  "泥": "n",
+  "沸": "f",
+  "沼": "z",
+  "波": "b",
+  "泼": "p",
+  "泽": "z",
+  "治": "z",
+  "怔": "z",
+  "怯": "q",
+  "怖": "b",
+  "性": "x",
+  "怕": "p",
+  "怜": "l",
+  "怪": "g",
+  "怡": "y",
+  "学": "x",
+  "宝": "b",
+  "宗": "z",
+  "定": "d",
+  "宠": "c",
+  "宜": "y",
+  "审": "s",
+  "宙": "z",
+  "官": "g",
+  "空": "k",
+  "帘": "l",
+  "宛": "w",
+  "实": "s",
+  "试": "s",
+  "郎": "l",
+  "诗": "s",
+  "肩": "j",
+  "房": "f",
+  "诚": "c",
+  "衬": "c",
+  "衫": "s",
+  "视": "s",
+  "祈": "q",
+  "话": "h",
+  "诞": "d",
+  "诡": "g",
+  "询": "x",
+  "该": "g",
+  "详": "x",
+  "建": "j",
+  "肃": "s",
+  "录": "l",
+  "隶": "l",
+  "帚": "z",
+  "屉": "t",
+  "居": "j",
+  "届": "j",
+  "刷": "s",
+  "屈": "q",
+  "弧": "h",
+  "弥": "m",
+  "弦": "x",
+  "承": "c",
+  "孟": "m",
+  "陋": "l",
+  "陌": "m",
+  "孤": "g",
+  "陕": "s",
+  "降": "j",
+  "函": "h",
+  "限": "x",
+  "妹": "m",
+  "姑": "g",
+  "姐": "j",
+  "姓": "x",
+  "妮": "n",
+  "始": "s",
+  "姆": "m",
+  "迢": "t",
+  "驾": "j",
+  "叁": "s",
+  "参": "c",
+  "艰": "j",
+  "线": "x",
+  "练": "l",
+  "组": "z",
+  "绅": "s",
+  "细": "x",
+  "驶": "s",
+  "织": "z",
+  "驹": "j",
+  "终": "z",
+  "驻": "z",
+  "绊": "b",
+  "驼": "t",
+  "绍": "s",
+  "绎": "y",
+  "经": "j",
+  "贯": "g",
+  "契": "q",
+  "贰": "e",
+  "奏": "z",
+  "春": "c",
+  "帮": "b",
+  "玷": "d",
+  "珍": "z",
+  "玲": "l",
+  "珊": "s",
+  "玻": "b",
+  "毒": "d",
+  "型": "x",
+  "拭": "s",
+  "挂": "g",
+  "封": "f",
+  "持": "c",
+  "拷": "k",
+  "拱": "g",
+  "项": "x",
+  "垮": "k",
+  "挎": "k",
+  "城": "c",
+  "挟": "x",
+  "挠": "n",
+  "政": "z",
+  "赴": "f",
+  "赵": "z",
+  "挡": "d",
+  "拽": "z",
+  "哉": "z",
+  "挺": "t",
+  "括": "k",
+  "垢": "g",
+  "拴": "s",
+  "拾": "s",
+  "挑": "t",
+  "垛": "d",
+  "指": "z",
+  "垫": "d",
+  "挣": "z",
+  "挤": "j",
+  "拼": "p",
+  "挖": "w",
+  "按": "a",
+  "挥": "h",
+  "挪": "n",
+  "拯": "z",
+  "某": "m",
+  "甚": "s",
+  "荆": "j",
+  "茸": "r",
+  "革": "g",
+  "茬": "c",
+  "荐": "j",
+  "巷": "x",
+  "带": "d",
+  "草": "c",
+  "茧": "j",
+  "茵": "y",
+  "茶": "c",
+  "荒": "h",
+  "茫": "m",
+  "荡": "d",
+  "荣": "r",
+  "荤": "h",
+  "荧": "y",
+  "故": "g",
+  "胡": "h",
+  "荫": "y",
+  "荔": "l",
+  "南": "n",
+  "药": "y",
+  "标": "b",
+  "栈": "z",
+  "柑": "g",
+  "枯": "k",
+  "柄": "b",
+  "栋": "d",
+  "相": "x",
+  "查": "c",
+  "柏": "b",
+  "栅": "s",
+  "柳": "l",
+  "柱": "z",
+  "柿": "s",
+  "栏": "l",
+  "柠": "n",
+  "树": "s",
+  "勃": "b",
+  "要": "y",
+  "柬": "j",
+  "咸": "x",
+  "威": "w",
+  "歪": "w",
+  "研": "y",
+  "砖": "z",
+  "厘": "l",
+  "厚": "h",
+  "砌": "q",
+  "砂": "s",
+  "泵": "b",
+  "砚": "y",
+  "砍": "k",
+  "面": "m",
+  "耐": "n",
+  "耍": "s",
+  "牵": "q",
+  "鸥": "o",
+  "残": "c",
+  "殃": "y",
+  "轴": "z",
+  "轻": "q",
+  "鸦": "y",
+  "皆": "j",
+  "韭": "j",
+  "背": "b",
+  "战": "z",
+  "点": "d",
+  "虐": "n",
+  "临": "l",
+  "览": "l",
+  "竖": "s",
+  "省": "s",
+  "削": "x",
+  "尝": "c",
+  "昧": "m",
+  "盹": "d",
+  "是": "s",
+  "盼": "p",
+  "眨": "z",
+  "哇": "w",
+  "哄": "h",
+  "哑": "y",
+  "显": "x",
+  "冒": "m",
+  "映": "y",
+  "星": "x",
+  "昨": "z",
+  "咧": "l",
+  "昭": "z",
+  "畏": "w",
+  "趴": "p",
+  "胃": "w",
+  "贵": "g",
+  "界": "j",
+  "虹": "h",
+  "虾": "x",
+  "蚁": "y",
+  "思": "s",
+  "蚂": "m",
+  "虽": "s",
+  "品": "p",
+  "咽": "y",
+  "骂": "m",
+  "勋": "x",
+  "哗": "h",
+  "咱": "z",
+  "响": "x",
+  "哈": "h",
+  "哆": "d",
+  "咬": "y",
+  "咳": "h",
+  "咪": "m",
+  "哪": "n",
+  "哟": "y",
+  "炭": "t",
+  "峡": "x",
+  "罚": "f",
+  "贱": "j",
+  "贴": "t",
+  "贻": "y",
+  "骨": "g",
+  "幽": "y",
+  "钙": "g",
+  "钝": "d",
+  "钞": "c",
+  "钟": "z",
+  "钢": "g",
+  "钠": "n",
+  "钥": "y",
+  "钦": "q",
+  "钧": "j",
+  "钩": "g",
+  "钮": "n",
+  "卸": "x",
+  "缸": "g",
+  "拜": "b",
+  "看": "k",
+  "矩": "j",
+  "毡": "z",
+  "氢": "q",
+  "怎": "z",
+  "牲": "s",
+  "选": "x",
+  "适": "s",
+  "秒": "m",
+  "香": "x",
+  "种": "z",
+  "秋": "q",
+  "科": "k",
+  "重": "z",
+  "复": "f",
+  "竿": "g",
+  "段": "d",
+  "便": "b",
+  "俩": "l",
+  "贷": "d",
+  "顺": "s",
+  "修": "x",
+  "俏": "q",
+  "保": "b",
+  "促": "c",
+  "俄": "e",
+  "俐": "l",
+  "侮": "w",
+  "俭": "j",
+  "俗": "s",
+  "俘": "f",
+  "信": "x",
+  "皇": "h",
+  "泉": "q",
+  "鬼": "g",
+  "侵": "q",
+  "禹": "y",
+  "侯": "h",
+  "追": "z",
+  "俊": "j",
+  "盾": "d",
+  "待": "d",
+  "徊": "h",
+  "衍": "y",
+  "律": "l",
+  "很": "h",
+  "须": "x",
+  "叙": "x",
+  "剑": "j",
+  "逃": "t",
+  "食": "s",
+  "盆": "p",
+  "胚": "p",
+  "胧": "l",
+  "胆": "d",
+  "胜": "s",
+  "胞": "b",
+  "胖": "p",
+  "脉": "m",
+  "胎": "t",
+  "勉": "m",
+  "狭": "x",
+  "狮": "s",
+  "独": "d",
+  "狰": "z",
+  "狡": "j",
+  "狱": "y",
+  "狠": "h",
+  "贸": "m",
+  "怨": "y",
+  "急": "j",
+  "饵": "e",
+  "饶": "r",
+  "蚀": "s",
+  "饺": "j",
+  "饼": "b",
+  "峦": "l",
+  "弯": "w",
+  "将": "j",
+  "奖": "j",
+  "哀": "a",
+  "亭": "t",
+  "亮": "l",
+  "度": "d",
+  "迹": "j",
+  "庭": "t",
+  "疮": "c",
+  "疯": "f",
+  "疫": "y",
+  "疤": "b",
+  "咨": "z",
+  "姿": "z",
+  "亲": "q",
+  "音": "y",
+  "帝": "d",
+  "施": "s",
+  "闺": "g",
+  "闻": "w",
+  "闽": "m",
+  "阀": "f",
+  "阁": "g",
+  "差": "c",
+  "养": "y",
+  "美": "m",
+  "姜": "j",
+  "叛": "p",
+  "送": "s",
+  "类": "l",
+  "迷": "m",
+  "籽": "z",
+  "娄": "l",
+  "前": "q",
+  "首": "s",
+  "逆": "n",
+  "兹": "z",
+  "总": "z",
+  "炼": "l",
+  "炸": "z",
+  "烁": "s",
+  "炮": "p",
+  "炫": "x",
+  "烂": "l",
+  "剃": "t",
+  "洼": "w",
+  "洁": "j",
+  "洪": "h",
+  "洒": "s",
+  "柒": "q",
+  "浇": "j",
+  "浊": "z",
+  "洞": "d",
+  "测": "c",
+  "洗": "x",
+  "活": "h",
+  "派": "p",
+  "洽": "q",
+  "染": "r",
+  "洛": "l",
+  "浏": "l",
+  "济": "j",
+  "洋": "y",
+  "洲": "z",
+  "浑": "h",
+  "浓": "n",
+  "津": "j",
+  "恃": "s",
+  "恒": "h",
+  "恢": "h",
+  "恍": "h",
+  "恬": "t",
+  "恤": "x",
+  "恰": "q",
+  "恼": "n",
+  "恨": "h",
+  "举": "j",
+  "觉": "j",
+  "宣": "x",
+  "宦": "h",
+  "室": "s",
+  "宫": "g",
+  "宪": "x",
+  "突": "t",
+  "穿": "c",
+  "窃": "q",
+  "客": "k",
+  "诫": "j",
+  "冠": "g",
+  "诬": "w",
+  "语": "y",
+  "扁": "b",
+  "袄": "a",
+  "祖": "z",
+  "神": "s",
+  "祝": "z",
+  "祠": "c",
+  "误": "w",
+  "诱": "y",
+  "诲": "h",
+  "说": "s",
+  "诵": "s",
+  "垦": "k",
+  "退": "t",
+  "既": "j",
+  "屋": "w",
+  "昼": "z",
+  "屏": "p",
+  "屎": "s",
+  "费": "f",
+  "陡": "d",
+  "逊": "x",
+  "眉": "m",
+  "孩": "h",
+  "陨": "y",
+  "除": "c",
+  "险": "x",
+  "院": "y",
+  "娃": "w",
+  "姥": "l",
+  "姨": "y",
+  "姻": "y",
+  "娇": "j",
+  "姚": "y",
+  "娜": "n",
+  "怒": "n",
+  "架": "j",
+  "贺": "h",
+  "盈": "y",
+  "勇": "y",
+  "怠": "d",
+  "癸": "g",
+  "蚤": "z",
+  "柔": "r",
+  "垒": "l",
+  "绑": "b",
+  "绒": "r",
+  "结": "j",
+  "绕": "r",
+  "骄": "j",
+  "绘": "h",
+  "给": "g",
+  "绚": "x",
+  "骆": "l",
+  "络": "l",
+  "绝": "j",
+  "绞": "j",
+  "骇": "h",
+  "统": "t",
+  "耕": "g",
+  "耘": "y",
+  "耗": "h",
+  "耙": "p",
+  "艳": "y",
+  "泰": "t",
+  "秦": "q",
+  "珠": "z",
+  "班": "b",
+  "素": "s",
+  "匿": "n",
+  "蚕": "c",
+  "顽": "w",
+  "盏": "z",
+  "匪": "f",
+  "捞": "l",
+  "栽": "z",
+  "捕": "b",
+  "埂": "g",
+  "捂": "w",
+  "振": "z",
+  "载": "z",
+  "赶": "g",
+  "起": "q",
+  "盐": "y",
+  "捎": "s",
+  "捍": "h",
+  "捏": "n",
+  "埋": "m",
+  "捉": "z",
+  "捆": "k",
+  "捐": "j",
+  "损": "s",
+  "袁": "y",
+  "捌": "b",
+  "都": "d",
+  "哲": "z",
+  "逝": "s",
+  "捡": "j",
+  "挫": "c",
+  "换": "h",
+  "挽": "w",
+  "挚": "z",
+  "热": "r",
+  "恐": "k",
+  "捣": "d",
+  "壶": "h",
+  "捅": "t",
+  "埃": "a",
+  "挨": "a",
+  "耻": "c",
+  "耿": "g",
+  "耽": "d",
+  "聂": "n",
+  "恭": "g",
+  "莽": "m",
+  "莱": "l",
+  "莲": "l",
+  "莫": "m",
+  "莉": "l",
+  "荷": "h",
+  "获": "h",
+  "晋": "j",
+  "恶": "e",
+  "莹": "y",
+  "莺": "y",
+  "真": "z",
+  "框": "k",
+  "梆": "b",
+  "桂": "g",
+  "桔": "j",
+  "栖": "q",
+  "档": "d",
+  "桐": "t",
+  "株": "z",
+  "桥": "q",
+  "桦": "h",
+  "栓": "s",
+  "桃": "t",
+  "格": "g",
+  "桩": "z",
+  "校": "x",
+  "核": "h",
+  "样": "y",
+  "根": "g",
+  "索": "s",
+  "哥": "g",
+  "速": "s",
+  "逗": "d",
+  "栗": "l",
+  "贾": "j",
+  "酌": "z",
+  "配": "p",
+  "翅": "c",
+  "辱": "r",
+  "唇": "c",
+  "夏": "x",
+  "砸": "z",
+  "砰": "p",
+  "砾": "l",
+  "础": "c",
+  "破": "p",
+  "原": "y",
+  "套": "t",
+  "逐": "z",
+  "烈": "l",
+  "殊": "s",
+  "殉": "x",
+  "顾": "g",
+  "轿": "j",
+  "较": "j",
+  "顿": "d",
+  "毙": "b",
+  "致": "z",
+  "柴": "c",
+  "桌": "z",
+  "虑": "l",
+  "监": "j",
+  "紧": "j",
+  "党": "d",
+  "逞": "c",
+  "晒": "s",
+  "眠": "m",
+  "晓": "x",
+  "哮": "x",
+  "唠": "l",
+  "鸭": "y",
+  "晃": "h",
+  "哺": "b",
+  "晌": "s",
+  "剔": "t",
+  "晕": "y",
+  "蚌": "b",
+  "畔": "p",
+  "蚣": "g",
+  "蚊": "w",
+  "蚪": "d",
+  "蚓": "y",
+  "哨": "s",
+  "哩": "l",
+  "圃": "p",
+  "哭": "k",
+  "哦": "o",
+  "恩": "e",
+  "鸯": "y",
+  "唤": "h",
+  "唁": "y",
+  "哼": "h",
+  "唧": "j",
+  "啊": "a",
+  "唉": "a",
+  "唆": "s",
+  "罢": "b",
+  "峭": "q",
+  "峨": "e",
+  "峰": "f",
+  "圆": "y",
+  "峻": "j",
+  "贼": "z",
+  "贿": "h",
+  "赂": "l",
+  "赃": "z",
+  "钱": "q",
+  "钳": "q",
+  "钻": "z",
+  "钾": "j",
+  "铁": "t",
+  "铃": "l",
+  "铅": "q",
+  "缺": "q",
+  "氧": "y",
+  "氨": "a",
+  "特": "t",
+  "牺": "x",
+  "造": "z",
+  "乘": "c",
+  "敌": "d",
+  "秤": "c",
+  "租": "z",
+  "积": "j",
+  "秧": "y",
+  "秩": "z",
+  "称": "c",
+  "秘": "m",
+  "透": "t",
+  "笔": "b",
+  "笑": "x",
+  "笋": "s",
+  "债": "z",
+  "借": "j",
+  "值": "z",
+  "倚": "y",
+  "俺": "a",
+  "倾": "q",
+  "倒": "d",
+  "倘": "t",
+  "俱": "j",
+  "倡": "c",
+  "候": "h",
+  "赁": "l",
+  "俯": "f",
+  "倍": "b",
+  "倦": "j",
+  "健": "j",
+  "臭": "c",
+  "射": "s",
+  "躬": "g",
+  "息": "x",
+  "倔": "j",
+  "徒": "t",
+  "徐": "x",
+  "殷": "y",
+  "舰": "j",
+  "舱": "c",
+  "般": "b",
+  "航": "h",
+  "途": "t",
+  "拿": "n",
+  "耸": "s",
+  "爹": "d",
+  "舀": "y",
+  "爱": "a",
+  "豺": "c",
+  "豹": "b",
+  "颁": "b",
+  "颂": "s",
+  "翁": "w",
+  "胰": "y",
+  "脆": "c",
+  "脂": "z",
+  "胸": "x",
+  "胳": "g",
+  "脏": "z",
+  "脐": "q",
+  "胶": "j",
+  "脑": "n",
+  "脓": "n",
+  "逛": "g",
+  "狸": "l",
+  "狼": "l",
+  "卿": "q",
+  "逢": "f",
+  "鸵": "t",
+  "留": "l",
+  "鸳": "y",
+  "皱": "z",
+  "饿": "e",
+  "馁": "n",
+  "凌": "l",
+  "凄": "q",
+  "恋": "l",
+  "桨": "j",
+  "浆": "j",
+  "衰": "s",
+  "衷": "z",
+  "高": "g",
+  "郭": "g",
+  "席": "x",
+  "准": "z",
+  "座": "z",
+  "症": "z",
+  "病": "b",
+  "疾": "j",
+  "斋": "z",
+  "疹": "z",
+  "疼": "t",
+  "疲": "p",
+  "脊": "j",
+  "效": "x",
+  "离": "l",
+  "紊": "w",
+  "唐": "t",
+  "瓷": "c",
+  "资": "z",
+  "凉": "l",
+  "站": "z",
+  "剖": "p",
+  "竞": "j",
+  "部": "b",
+  "旁": "p",
+  "旅": "l",
+  "畜": "c",
+  "阅": "y",
+  "羞": "x",
+  "羔": "g",
+  "瓶": "p",
+  "拳": "q",
+  "粉": "f",
+  "料": "l",
+  "益": "y",
+  "兼": "j",
+  "烤": "k",
+  "烘": "h",
+  "烦": "f",
+  "烧": "s",
+  "烛": "z",
+  "烟": "y",
+  "烙": "l",
+  "递": "d",
+  "涛": "t",
+  "浙": "z",
+  "涝": "l",
+  "浦": "p",
+  "酒": "j",
+  "涉": "s",
+  "消": "x",
+  "涡": "w",
+  "浩": "h",
+  "海": "h",
+  "涂": "t",
+  "浴": "y",
+  "浮": "f",
+  "涣": "h",
+  "涤": "d",
+  "流": "l",
+  "润": "r",
+  "涧": "j",
+  "涕": "t",
+  "浪": "l",
+  "浸": "j",
+  "涨": "z",
+  "烫": "t",
+  "涩": "s",
+  "涌": "y",
+  "悖": "b",
+  "悟": "w",
+  "悄": "q",
+  "悍": "h",
+  "悔": "h",
+  "悯": "m",
+  "悦": "y",
+  "害": "h",
+  "宽": "k",
+  "家": "j",
+  "宵": "x",
+  "宴": "y",
+  "宾": "b",
+  "窍": "q",
+  "窄": "z",
+  "容": "r",
+  "宰": "z",
+  "案": "a",
+  "请": "q",
+  "朗": "l",
+  "诸": "z",
+  "诺": "n",
+  "读": "d",
+  "扇": "s",
+  "诽": "f",
+  "袜": "w",
+  "袖": "x",
+  "袍": "p",
+  "被": "b",
+  "祥": "x",
+  "课": "k",
+  "冥": "m",
+  "谁": "s",
+  "调": "t",
+  "冤": "y",
+  "谅": "l",
+  "谆": "z",
+  "谈": "t",
+  "谊": "y",
+  "剥": "b",
+  "恳": "k",
+  "展": "z",
+  "剧": "j",
+  "屑": "x",
+  "弱": "r",
+  "陵": "l",
+  "祟": "s",
+  "陶": "t",
+  "陷": "x",
+  "陪": "p",
+  "娱": "y",
+  "娟": "j",
+  "恕": "s",
+  "娥": "e",
+  "娘": "n",
+  "通": "t",
+  "能": "n",
+  "难": "n",
+  "预": "y",
+  "桑": "s",
+  "绢": "j",
+  "绣": "x",
+  "验": "y",
+  "继": "j",
+  "骏": "j",
+  "球": "q",
+  "琐": "s",
+  "理": "l",
+  "琉": "l",
+  "琅": "l",
+  "捧": "p",
+  "堵": "d",
+  "措": "c",
+  "描": "m",
+  "域": "y",
+  "捺": "n",
+  "掩": "y",
+  "捷": "j",
+  "排": "p",
+  "焉": "y",
+  "掉": "d",
+  "捶": "c",
+  "赦": "s",
+  "堆": "d",
+  "推": "t",
+  "埠": "b",
+  "掀": "x",
+  "授": "s",
+  "捻": "n",
+  "教": "j",
+  "掏": "t",
+  "掐": "q",
+  "掠": "l",
+  "掂": "d",
+  "培": "p",
+  "接": "j",
+  "掷": "z",
+  "控": "k",
+  "探": "t",
+  "据": "j",
+  "掘": "j",
+  "掺": "c",
+  "职": "z",
+  "基": "j",
+  "聆": "l",
+  "勘": "k",
+  "聊": "l",
+  "娶": "q",
+  "著": "z",
+  "菱": "l",
+  "勒": "l",
+  "黄": "h",
+  "菲": "f",
+  "萌": "m",
+  "萝": "l",
+  "菌": "j",
+  "萎": "w",
+  "菜": "c",
+  "萄": "t",
+  "菊": "j",
+  "菩": "p",
+  "萍": "p",
+  "菠": "b",
+  "萤": "y",
+  "营": "y",
+  "乾": "q",
+  "萧": "x",
+  "萨": "s",
+  "菇": "g",
+  "械": "x",
+  "彬": "b",
+  "梦": "m",
+  "婪": "l",
+  "梗": "g",
+  "梧": "w",
+  "梢": "s",
+  "梅": "m",
+  "检": "j",
+  "梳": "s",
+  "梯": "t",
+  "桶": "t",
+  "梭": "s",
+  "救": "j",
+  "曹": "c",
+  "副": "f",
+  "票": "p",
+  "酝": "y",
+  "酗": "x",
+  "厢": "x",
+  "戚": "q",
+  "硅": "g",
+  "硕": "s",
+  "奢": "s",
+  "盔": "k",
+  "爽": "s",
+  "聋": "l",
+  "袭": "x",
+  "盛": "s",
+  "匾": "b",
+  "雪": "x",
+  "辅": "f",
+  "辆": "l",
+  "颅": "l",
+  "虚": "x",
+  "彪": "b",
+  "雀": "q",
+  "堂": "t",
+  "常": "c",
+  "眶": "k",
+  "匙": "c",
+  "晨": "c",
+  "睁": "z",
+  "眯": "m",
+  "眼": "y",
+  "悬": "x",
+  "野": "y",
+  "啪": "p",
+  "啦": "l",
+  "曼": "m",
+  "晦": "h",
+  "晚": "w",
+  "啄": "z",
+  "啡": "f",
+  "距": "j",
+  "趾": "z",
+  "啃": "k",
+  "跃": "y",
+  "略": "l",
+  "蚯": "q",
+  "蛀": "z",
+  "蛇": "s",
+  "唬": "h",
+  "累": "l",
+  "鄂": "e",
+  "唱": "c",
+  "患": "h",
+  "啰": "l",
+  "唾": "t",
+  "唯": "w",
+  "啤": "p",
+  "啥": "s",
+  "啸": "x",
+  "崖": "y",
+  "崎": "q",
+  "崭": "z",
+  "逻": "l",
+  "崔": "c",
+  "帷": "w",
+  "崩": "b",
+  "崇": "c",
+  "崛": "j",
+  "婴": "y",
+  "圈": "q",
+  "铐": "k",
+  "铛": "d",
+  "铝": "l",
+  "铜": "t",
+  "铭": "m",
+  "铲": "c",
+  "银": "y",
+  "矫": "j",
+  "甜": "t",
+  "秸": "j",
+  "梨": "l",
+  "犁": "l",
+  "秽": "h",
+  "移": "y",
+  "笨": "b",
+  "笼": "l",
+  "笛": "d",
+  "笙": "s",
+  "符": "f",
+  "第": "d",
+  "敏": "m",
+  "做": "z",
+  "袋": "d",
+  "悠": "y",
+  "偿": "c",
+  "偶": "o",
+  "偎": "w",
+  "偷": "t",
+  "您": "n",
+  "售": "s",
+  "停": "t",
+  "偏": "p",
+  "躯": "q",
+  "兜": "d",
+  "假": "j",
+  "衅": "x",
+  "徘": "p",
+  "徙": "x",
+  "得": "d",
+  "衔": "x",
+  "盘": "p",
+  "舶": "b",
+  "船": "c",
+  "舵": "d",
+  "斜": "x",
+  "盒": "h",
+  "鸽": "g",
+  "敛": "l",
+  "悉": "x",
+  "欲": "y",
+  "彩": "c",
+  "领": "l",
+  "脚": "j",
+  "脖": "b",
+  "脯": "p",
+  "豚": "t",
+  "脸": "l",
+  "脱": "t",
+  "象": "x",
+  "够": "g",
+  "逸": "y",
+  "猜": "c",
+  "猪": "z",
+  "猎": "l",
+  "猫": "m",
+  "凰": "h",
+  "猖": "c",
+  "猛": "m",
+  "祭": "j",
+  "馅": "x",
+  "馆": "g",
+  "凑": "c",
+  "减": "j",
+  "毫": "h",
+  "烹": "p",
+  "庶": "s",
+  "麻": "m",
+  "庵": "a",
+  "痊": "q",
+  "痒": "y",
+  "痕": "h",
+  "廊": "l",
+  "康": "k",
+  "庸": "y",
+  "鹿": "l",
+  "盗": "d",
+  "章": "z",
+  "竟": "j",
+  "商": "s",
+  "族": "z",
+  "旋": "x",
+  "望": "w",
+  "率": "l",
+  "阎": "y",
+  "阐": "c",
+  "着": "z",
+  "羚": "l",
+  "盖": "g",
+  "眷": "j",
+  "粘": "n",
+  "粗": "c",
+  "粒": "l",
+  "断": "d",
+  "剪": "j",
+  "兽": "s",
+  "焊": "h",
+  "焕": "h",
+  "清": "q",
+  "添": "t",
+  "鸿": "h",
+  "淋": "l",
+  "涯": "y",
+  "淹": "y",
+  "渠": "q",
+  "渐": "j",
+  "淑": "s",
+  "淌": "t",
+  "混": "h",
+  "淮": "h",
+  "淆": "x",
+  "渊": "y",
+  "淫": "y",
+  "渔": "y",
+  "淘": "t",
+  "淳": "c",
+  "液": "y",
+  "淤": "y",
+  "淡": "d",
+  "淀": "d",
+  "深": "s",
+  "涮": "s",
+  "涵": "h",
+  "婆": "p",
+  "梁": "l",
+  "渗": "s",
+  "情": "q",
+  "惜": "x",
+  "惭": "c",
+  "悼": "d",
+  "惧": "j",
+  "惕": "t",
+  "惟": "w",
+  "惊": "j",
+  "惦": "d",
+  "悴": "c",
+  "惋": "w",
+  "惨": "c",
+  "惯": "g",
+  "寇": "k",
+  "寅": "y",
+  "寄": "j",
+  "寂": "j",
+  "宿": "s",
+  "窒": "z",
+  "窑": "y",
+  "密": "m",
+  "谋": "m",
+  "谍": "d",
+  "谎": "h",
+  "谐": "x",
+  "袱": "f",
+  "祷": "d",
+  "祸": "h",
+  "谓": "w",
+  "谚": "y",
+  "谜": "m",
+  "逮": "d",
+  "敢": "g",
+  "尉": "w",
+  "屠": "t",
+  "弹": "t",
+  "隋": "s",
+  "堕": "d",
+  "随": "s",
+  "蛋": "d",
+  "隅": "y",
+  "隆": "l",
+  "隐": "y",
+  "婚": "h",
+  "婶": "s",
+  "婉": "w",
+  "颇": "p",
+  "颈": "j",
+  "绩": "j",
+  "绪": "x",
+  "续": "x",
+  "骑": "q",
+  "绰": "c",
+  "绳": "s",
+  "维": "w",
+  "绵": "m",
+  "绷": "b",
+  "绸": "c",
+  "综": "z",
+  "绽": "z",
+  "绿": "l",
+  "缀": "z",
+  "巢": "c",
+  "琴": "q",
+  "琳": "l",
+  "琢": "z",
+  "琼": "q",
+  "斑": "b",
+  "替": "t",
+  "揍": "z",
+  "款": "k",
+  "堪": "k",
+  "塔": "t",
+  "搭": "d",
+  "堰": "y",
+  "揩": "k",
+  "越": "y",
+  "趁": "c",
+  "趋": "q",
+  "超": "c",
+  "揽": "l",
+  "堤": "d",
+  "提": "t",
+  "博": "b",
+  "揭": "j",
+  "喜": "x",
+  "彭": "p",
+  "揣": "c",
+  "插": "c",
+  "揪": "j",
+  "搜": "s",
+  "煮": "z",
+  "援": "y",
+  "搀": "c",
+  "裁": "c",
+  "搁": "g",
+  "搓": "c",
+  "搂": "l",
+  "搅": "j",
+  "壹": "y",
+  "握": "w",
+  "搔": "s",
+  "揉": "r",
+  "斯": "s",
+  "期": "q",
+  "欺": "q",
+  "联": "l",
+  "葫": "h",
+  "散": "s",
+  "惹": "r",
+  "葬": "z",
+  "募": "m",
+  "葛": "g",
+  "董": "d",
+  "葡": "p",
+  "敬": "j",
+  "葱": "c",
+  "蒋": "j",
+  "蒂": "d",
+  "落": "l",
+  "韩": "h",
+  "朝": "c",
+  "辜": "g",
+  "葵": "k",
+  "棒": "b",
+  "棱": "l",
+  "棋": "q",
+  "椰": "y",
+  "植": "z",
+  "森": "s",
+  "焚": "f",
+  "椅": "y",
+  "椒": "j",
+  "棵": "k",
+  "棍": "g",
+  "椎": "z",
+  "棉": "m",
+  "棚": "p",
+  "棕": "z",
+  "棺": "g",
+  "榔": "l",
+  "椭": "t",
+  "惠": "h",
+  "惑": "h",
+  "逼": "b",
+  "粟": "s",
+  "棘": "j",
+  "酣": "h",
+  "酥": "s",
+  "厨": "c",
+  "厦": "s",
+  "硬": "y",
+  "硝": "x",
+  "确": "q",
+  "硫": "l",
+  "雁": "y",
+  "殖": "z",
+  "裂": "l",
+  "雄": "x",
+  "颊": "j",
+  "雳": "l",
+  "暂": "z",
+  "雅": "y",
+  "翘": "q",
+  "辈": "b",
+  "悲": "b",
+  "紫": "z",
+  "凿": "z",
+  "辉": "h",
+  "敞": "c",
+  "棠": "t",
+  "赏": "s",
+  "掌": "z",
+  "晴": "q",
+  "睐": "l",
+  "暑": "s",
+  "最": "z",
+  "晰": "x",
+  "量": "l",
+  "鼎": "d",
+  "喷": "p",
+  "喳": "z",
+  "晶": "j",
+  "喇": "l",
+  "遇": "y",
+  "喊": "h",
+  "遏": "e",
+  "晾": "l",
+  "景": "j",
+  "畴": "c",
+  "践": "j",
+  "跋": "b",
+  "跌": "d",
+  "跑": "p",
+  "跛": "b",
+  "遗": "y",
+  "蛙": "w",
+  "蛛": "z",
+  "蜓": "t",
+  "蜒": "y",
+  "蛤": "h",
+  "喝": "h",
+  "鹃": "j",
+  "喂": "w",
+  "喘": "c",
+  "喉": "h",
+  "喻": "y",
+  "啼": "t",
+  "喧": "x",
+  "嵌": "q",
+  "幅": "f",
+  "帽": "m",
+  "赋": "f",
+  "赌": "d",
+  "赎": "s",
+  "赐": "c",
+  "赔": "p",
+  "黑": "h",
+  "铸": "z",
+  "铺": "p",
+  "链": "l",
+  "销": "x",
+  "锁": "s",
+  "锄": "c",
+  "锅": "g",
+  "锈": "x",
+  "锋": "f",
+  "锌": "x",
+  "锐": "r",
+  "甥": "s",
+  "掰": "b",
+  "短": "d",
+  "智": "z",
+  "氮": "d",
+  "毯": "t",
+  "氯": "l",
+  "鹅": "e",
+  "剩": "s",
+  "稍": "s",
+  "程": "c",
+  "稀": "x",
+  "税": "s",
+  "筐": "k",
+  "等": "d",
+  "筑": "z",
+  "策": "c",
+  "筛": "s",
+  "筒": "t",
+  "筏": "f",
+  "答": "d",
+  "筋": "j",
+  "筝": "z",
+  "傲": "a",
+  "傅": "f",
+  "牌": "p",
+  "堡": "b",
+  "集": "j",
+  "焦": "j",
+  "傍": "b",
+  "储": "c",
+  "皓": "h",
+  "皖": "w",
+  "粤": "y",
+  "奥": "a",
+  "街": "j",
+  "惩": "c",
+  "御": "y",
+  "循": "x",
+  "艇": "t",
+  "舒": "s",
+  "逾": "y",
+  "番": "f",
+  "释": "s",
+  "禽": "q",
+  "腊": "l",
+  "脾": "p",
+  "腋": "y",
+  "腔": "q",
+  "腕": "w",
+  "鲁": "l",
+  "猩": "x",
+  "猬": "w",
+  "猾": "h",
+  "猴": "h",
+  "惫": "b",
+  "然": "r",
+  "馈": "k",
+  "馋": "c",
+  "装": "z",
+  "蛮": "m",
+  "就": "j",
+  "敦": "d",
+  "斌": "b",
+  "痘": "d",
+  "痢": "l",
+  "痪": "h",
+  "痛": "t",
+  "童": "t",
+  "竣": "j",
+  "阔": "k",
+  "善": "s",
+  "翔": "x",
+  "羡": "x",
+  "普": "p",
+  "粪": "f",
+  "尊": "z",
+  "奠": "d",
+  "道": "d",
+  "遂": "s",
+  "曾": "c",
+  "焰": "y",
+  "港": "g",
+  "滞": "z",
+  "湖": "h",
+  "湘": "x",
+  "渣": "z",
+  "渤": "b",
+  "渺": "m",
+  "湿": "s",
+  "温": "w",
+  "渴": "k",
+  "溃": "k",
+  "溅": "j",
+  "滑": "h",
+  "湃": "p",
+  "渝": "y",
+  "湾": "w",
+  "渡": "d",
+  "游": "y",
+  "滋": "z",
+  "渲": "x",
+  "溉": "g",
+  "愤": "f",
+  "慌": "h",
+  "惰": "d",
+  "愕": "e",
+  "愣": "l",
+  "惶": "h",
+  "愧": "k",
+  "愉": "y",
+  "慨": "k",
+  "割": "g",
+  "寒": "h",
+  "富": "f",
+  "寓": "y",
+  "窜": "c",
+  "窝": "w",
+  "窖": "j",
+  "窗": "c",
+  "窘": "j",
+  "遍": "b",
+  "雇": "g",
+  "裕": "y",
+  "裤": "k",
+  "裙": "q",
+  "禅": "c",
+  "禄": "l",
+  "谢": "x",
+  "谣": "y",
+  "谤": "b",
+  "谦": "q",
+  "犀": "x",
+  "属": "s",
+  "屡": "l",
+  "强": "q",
+  "粥": "z",
+  "疏": "s",
+  "隔": "g",
+  "隙": "x",
+  "隘": "a",
+  "媒": "m",
+  "絮": "x",
+  "嫂": "s",
+  "媚": "m",
+  "婿": "x",
+  "登": "d",
+  "缅": "m",
+  "缆": "l",
+  "缉": "j",
+  "缎": "d",
+  "缓": "h",
+  "缔": "d",
+  "缕": "l",
+  "骗": "p",
+  "编": "b",
+  "骚": "s",
+  "缘": "y",
+  "瑟": "s",
+  "鹉": "w",
+  "瑞": "r",
+  "瑰": "g",
+  "瑙": "n",
+  "魂": "h",
+  "肆": "s",
+  "摄": "s",
+  "摸": "m",
+  "填": "t",
+  "搏": "b",
+  "塌": "t",
+  "鼓": "g",
+  "摆": "b",
+  "携": "x",
+  "搬": "b",
+  "摇": "y",
+  "搞": "g",
+  "塘": "t",
+  "摊": "t",
+  "聘": "p",
+  "斟": "z",
+  "蒜": "s",
+  "勤": "q",
+  "靴": "x",
+  "靶": "b",
+  "鹊": "q",
+  "蓝": "l",
+  "墓": "m",
+  "幕": "m",
+  "蓬": "p",
+  "蓄": "x",
+  "蒲": "p",
+  "蓉": "r",
+  "蒙": "m",
+  "蒸": "z",
+  "献": "x",
+  "椿": "c",
+  "禁": "j",
+  "楚": "c",
+  "楷": "k",
+  "榄": "l",
+  "想": "x",
+  "槐": "h",
+  "榆": "y",
+  "楼": "l",
+  "概": "g",
+  "赖": "l",
+  "酪": "l",
+  "酬": "c",
+  "感": "g",
+  "碍": "a",
+  "碘": "d",
+  "碑": "b",
+  "碎": "s",
+  "碰": "p",
+  "碗": "w",
+  "碌": "l",
+  "尴": "g",
+  "雷": "l",
+  "零": "l",
+  "雾": "w",
+  "雹": "b",
+  "辐": "f",
+  "辑": "j",
+  "输": "s",
+  "督": "d",
+  "频": "p",
+  "龄": "l",
+  "鉴": "j",
+  "睛": "j",
+  "睹": "d",
+  "睦": "m",
+  "瞄": "m",
+  "睫": "j",
+  "睡": "s",
+  "睬": "c",
+  "嗜": "s",
+  "鄙": "b",
+  "嗦": "s",
+  "愚": "y",
+  "暖": "n",
+  "盟": "m",
+  "歇": "x",
+  "暗": "a",
+  "暇": "x",
+  "照": "z",
+  "畸": "j",
+  "跨": "k",
+  "跷": "q",
+  "跳": "t",
+  "跺": "d",
+  "跪": "g",
+  "路": "l",
+  "跤": "j",
+  "跟": "g",
+  "遣": "q",
+  "蜈": "w",
+  "蜗": "w",
+  "蛾": "e",
+  "蜂": "f",
+  "蜕": "t",
+  "嗅": "x",
+  "嗡": "w",
+  "嗓": "s",
+  "署": "s",
+  "置": "z",
+  "罪": "z",
+  "罩": "z",
+  "蜀": "s",
+  "幌": "h",
+  "错": "c",
+  "锚": "m",
+  "锡": "x",
+  "锣": "l",
+  "锤": "c",
+  "锥": "z",
+  "锦": "j",
+  "键": "j",
+  "锯": "j",
+  "锰": "m",
+  "矮": "a",
+  "辞": "c",
+  "稚": "z",
+  "稠": "c",
+  "颓": "t",
+  "愁": "c",
+  "筹": "c",
+  "签": "q",
+  "简": "j",
+  "筷": "k",
+  "毁": "h",
+  "舅": "j",
+  "鼠": "s",
+  "催": "c",
+  "傻": "s",
+  "像": "x",
+  "躲": "d",
+  "魁": "k",
+  "衙": "y",
+  "微": "w",
+  "愈": "y",
+  "遥": "y",
+  "腻": "n",
+  "腰": "y",
+  "腥": "x",
+  "腮": "s",
+  "腹": "f",
+  "腺": "x",
+  "鹏": "p",
+  "腾": "t",
+  "腿": "t",
+  "鲍": "b",
+  "猿": "y",
+  "颖": "y",
+  "触": "c",
+  "解": "j",
+  "煞": "s",
+  "雏": "c",
+  "馍": "m",
+  "馏": "l",
+  "酱": "j",
+  "禀": "b",
+  "痹": "b",
+  "廓": "k",
+  "痴": "c",
+  "痰": "t",
+  "廉": "l",
+  "靖": "j",
+  "新": "x",
+  "韵": "y",
+  "意": "y",
+  "誊": "t",
+  "粮": "l",
+  "数": "s",
+  "煎": "j",
+  "塑": "s",
+  "慈": "c",
+  "煤": "m",
+  "煌": "h",
+  "满": "m",
+  "漠": "m",
+  "滇": "d",
+  "源": "y",
+  "滤": "l",
+  "滥": "l",
+  "滔": "t",
+  "溪": "x",
+  "溜": "l",
+  "漓": "l",
+  "滚": "g",
+  "溢": "y",
+  "溯": "s",
+  "滨": "b",
+  "溶": "r",
+  "溺": "n",
+  "粱": "l",
+  "滩": "t",
+  "慎": "s",
+  "誉": "y",
+  "塞": "s",
+  "寞": "m",
+  "窥": "k",
+  "窟": "k",
+  "寝": "q",
+  "谨": "j",
+  "褂": "g",
+  "裸": "l",
+  "福": "f",
+  "谬": "m",
+  "群": "q",
+  "殿": "d",
+  "辟": "p",
+  "障": "z",
+  "媳": "x",
+  "嫉": "j",
+  "嫌": "x",
+  "嫁": "j",
+  "叠": "d",
+  "缚": "f",
+  "缝": "f",
+  "缠": "c",
+  "缤": "b",
+  "剿": "j",
+  "静": "j",
+  "碧": "b",
+  "璃": "l",
+  "赘": "z",
+  "熬": "a",
+  "墙": "q",
+  "墟": "x",
+  "嘉": "j",
+  "摧": "c",
+  "赫": "h",
+  "截": "j",
+  "誓": "s",
+  "境": "j",
+  "摘": "z",
+  "摔": "s",
+  "撇": "p",
+  "聚": "j",
+  "慕": "m",
+  "暮": "m",
+  "摹": "m",
+  "蔓": "m",
+  "蔑": "m",
+  "蔡": "c",
+  "蔗": "z",
+  "蔽": "b",
+  "蔼": "a",
+  "熙": "x",
+  "蔚": "w",
+  "兢": "j",
+  "模": "m",
+  "槛": "k",
+  "榴": "l",
+  "榜": "b",
+  "榨": "z",
+  "榕": "r",
+  "歌": "g",
+  "遭": "z",
+  "酵": "j",
+  "酷": "k",
+  "酿": "n",
+  "酸": "s",
+  "碟": "d",
+  "碱": "j",
+  "碳": "t",
+  "磁": "c",
+  "愿": "y",
+  "需": "x",
+  "辖": "x",
+  "辗": "n",
+  "雌": "c",
+  "裳": "s",
+  "颗": "k",
+  "瞅": "c",
+  "墅": "s",
+  "嗽": "s",
+  "踊": "y",
+  "蜻": "q",
+  "蜡": "l",
+  "蝇": "y",
+  "蜘": "z",
+  "蝉": "c",
+  "嘛": "m",
+  "嘀": "d",
+  "赚": "z",
+  "锹": "q",
+  "锻": "d",
+  "镀": "d",
+  "舞": "w",
+  "舔": "t",
+  "稳": "w",
+  "熏": "x",
+  "箕": "j",
+  "算": "s",
+  "箩": "l",
+  "管": "g",
+  "箫": "x",
+  "舆": "y",
+  "僚": "l",
+  "僧": "s",
+  "鼻": "b",
+  "魄": "p",
+  "魅": "m",
+  "貌": "m",
+  "膜": "m",
+  "膊": "b",
+  "膀": "b",
+  "鲜": "x",
+  "疑": "y",
+  "孵": "f",
+  "馒": "m",
+  "裹": "g",
+  "敲": "q",
+  "豪": "h",
+  "膏": "g",
+  "遮": "z",
+  "腐": "f",
+  "瘩": "d",
+  "瘟": "w",
+  "瘦": "s",
+  "辣": "l",
+  "彰": "z",
+  "竭": "j",
+  "端": "d",
+  "旗": "q",
+  "精": "j",
+  "粹": "c",
+  "歉": "q",
+  "弊": "b",
+  "熄": "x",
+  "熔": "r",
+  "煽": "s",
+  "潇": "x",
+  "漆": "q",
+  "漱": "s",
+  "漂": "p",
+  "漫": "m",
+  "滴": "d",
+  "漾": "y",
+  "演": "y",
+  "漏": "l",
+  "慢": "m",
+  "慷": "k",
+  "寨": "z",
+  "赛": "s",
+  "寡": "g",
+  "察": "c",
+  "蜜": "m",
+  "寥": "l",
+  "谭": "t",
+  "肇": "z",
+  "褐": "h",
+  "褪": "t",
+  "谱": "p",
+  "隧": "s",
+  "嫩": "n",
+  "翠": "c",
+  "熊": "x",
+  "凳": "d",
+  "骡": "l",
+  "缩": "s",
+  "慧": "h",
+  "撵": "n",
+  "撕": "s",
+  "撒": "s",
+  "撩": "l",
+  "趣": "q",
+  "趟": "t",
+  "撑": "c",
+  "撮": "c",
+  "撬": "q",
+  "播": "b",
+  "擒": "q",
+  "墩": "d",
+  "撞": "z",
+  "撤": "c",
+  "增": "z",
+  "撰": "z",
+  "聪": "c",
+  "鞋": "x",
+  "鞍": "a",
+  "蕉": "j",
+  "蕊": "r",
+  "蔬": "s",
+  "蕴": "y",
+  "横": "h",
+  "槽": "c",
+  "樱": "y",
+  "橡": "x",
+  "樟": "z",
+  "橄": "g",
+  "敷": "f",
+  "豌": "w",
+  "飘": "p",
+  "醋": "c",
+  "醇": "c",
+  "醉": "z",
+  "磕": "k",
+  "磊": "l",
+  "磅": "b",
+  "碾": "n",
+  "震": "z",
+  "霄": "x",
+  "霉": "m",
+  "瞒": "m",
+  "题": "t",
+  "暴": "b",
+  "瞎": "x",
+  "嘻": "x",
+  "嘶": "s",
+  "嘲": "c",
+  "嘹": "l",
+  "影": "y",
+  "踢": "t",
+  "踏": "t",
+  "踩": "c",
+  "踪": "z",
+  "蝶": "d",
+  "蝴": "h",
+  "蝠": "f",
+  "蝎": "x",
+  "蝌": "k",
+  "蝗": "h",
+  "蝙": "b",
+  "嘿": "h",
+  "嘱": "z",
+  "幢": "z",
+  "墨": "m",
+  "镇": "z",
+  "镐": "h",
+  "镑": "b",
+  "靠": "k",
+  "稽": "j",
+  "稻": "d",
+  "黎": "l",
+  "稿": "g",
+  "稼": "j",
+  "箱": "x",
+  "篓": "l",
+  "箭": "j",
+  "篇": "p",
+  "僵": "j",
+  "躺": "t",
+  "僻": "p",
+  "德": "d",
+  "艘": "s",
+  "膝": "x",
+  "膛": "t",
+  "鲤": "l",
+  "鲫": "j",
+  "熟": "s",
+  "摩": "m",
+  "褒": "b",
+  "瘪": "b",
+  "瘤": "l",
+  "瘫": "t",
+  "凛": "l",
+  "颜": "y",
+  "毅": "y",
+  "糊": "h",
+  "遵": "z",
+  "憋": "b",
+  "潜": "q",
+  "澎": "p",
+  "潮": "c",
+  "潭": "t",
+  "鲨": "s",
+  "澳": "a",
+  "潘": "p",
+  "澈": "c",
+  "澜": "l",
+  "澄": "c",
+  "懂": "d",
+  "憔": "q",
+  "懊": "a",
+  "憎": "z",
+  "额": "e",
+  "翩": "p",
+  "褥": "r",
+  "谴": "q",
+  "鹤": "h",
+  "憨": "h",
+  "慰": "w",
+  "劈": "p",
+  "履": "l",
+  "豫": "y",
+  "缭": "l",
+  "撼": "h",
+  "擂": "l",
+  "操": "c",
+  "擅": "s",
+  "燕": "y",
+  "蕾": "l",
+  "薯": "s",
+  "薛": "x",
+  "薇": "w",
+  "擎": "q",
+  "薪": "x",
+  "薄": "b",
+  "颠": "d",
+  "翰": "h",
+  "噩": "e",
+  "橱": "c",
+  "橙": "c",
+  "橘": "j",
+  "整": "z",
+  "融": "r",
+  "瓢": "p",
+  "醒": "x",
+  "霍": "h",
+  "霎": "s",
+  "辙": "z",
+  "冀": "j",
+  "餐": "c",
+  "嘴": "z",
+  "踱": "d",
+  "蹄": "t",
+  "蹂": "r",
+  "蟆": "m",
+  "螃": "p",
+  "器": "q",
+  "噪": "z",
+  "鹦": "y",
+  "赠": "z",
+  "默": "m",
+  "黔": "q",
+  "镜": "j",
+  "赞": "z",
+  "穆": "m",
+  "篮": "l",
+  "篡": "c",
+  "篷": "p",
+  "篱": "l",
+  "儒": "r",
+  "邀": "y",
+  "衡": "h",
+  "膨": "p",
+  "雕": "d",
+  "鲸": "j",
+  "磨": "m",
+  "瘾": "y",
+  "瘸": "q",
+  "凝": "n",
+  "辨": "b",
+  "辩": "b",
+  "糙": "c",
+  "糖": "t",
+  "糕": "g",
+  "燃": "r",
+  "濒": "b",
+  "澡": "z",
+  "激": "j",
+  "懒": "l",
+  "憾": "h",
+  "懈": "x",
+  "窿": "l",
+  "壁": "b",
+  "避": "b",
+  "缰": "j",
+  "缴": "j",
+  "戴": "d",
+  "擦": "c",
+  "藉": "j",
+  "鞠": "j",
+  "藏": "c",
+  "藐": "m",
+  "檬": "m",
+  "檐": "y",
+  "檀": "t",
+  "礁": "j",
+  "磷": "l",
+  "霜": "s",
+  "霞": "x",
+  "瞭": "l",
+  "瞧": "q",
+  "瞬": "s",
+  "瞳": "t",
+  "瞩": "z",
+  "瞪": "d",
+  "曙": "s",
+  "蹋": "t",
+  "蹈": "d",
+  "螺": "l",
+  "蟋": "x",
+  "蟀": "s",
+  "嚎": "h",
+  "赡": "s",
+  "穗": "s",
+  "魏": "w",
+  "簧": "h",
+  "簇": "c",
+  "繁": "f",
+  "徽": "h",
+  "爵": "j",
+  "朦": "m",
+  "臊": "s",
+  "鳄": "e",
+  "癌": "a",
+  "辫": "b",
+  "赢": "y",
+  "糟": "z",
+  "糠": "k",
+  "燥": "z",
+  "懦": "n",
+  "豁": "h",
+  "臀": "t",
+  "臂": "b",
+  "翼": "y",
+  "骤": "z",
+  "藕": "o",
+  "鞭": "b",
+  "藤": "t",
+  "覆": "f",
+  "瞻": "z",
+  "蹦": "b",
+  "嚣": "a",
+  "镰": "l",
+  "翻": "f",
+  "鳍": "q",
+  "鹰": "y",
+  "瀑": "p",
+  "襟": "j",
+  "璧": "b",
+  "戳": "c",
+  "孽": "n",
+  "警": "j",
+  "蘑": "m",
+  "藻": "z",
+  "攀": "p",
+  "曝": "p",
+  "蹲": "d",
+  "蹭": "c",
+  "蹬": "d",
+  "巅": "d",
+  "簸": "b",
+  "簿": "b",
+  "蟹": "x",
+  "颤": "c",
+  "靡": "m",
+  "癣": "x",
+  "瓣": "b",
+  "羹": "g",
+  "鳖": "b",
+  "爆": "b",
+  "疆": "j",
+  "鬓": "b",
+  "壤": "r",
+  "馨": "x",
+  "耀": "y",
+  "躁": "z",
+  "蠕": "r",
+  "嚼": "j",
+  "嚷": "r",
+  "巍": "w",
+  "籍": "j",
+  "鳞": "l",
+  "魔": "m",
+  "糯": "n",
+  "灌": "g",
+  "譬": "p",
+  "蠢": "c",
+  "霸": "b",
+  "露": "l",
+  "霹": "p",
+  "躏": "l",
+  "黯": "a",
+  "髓": "s",
+  "赣": "g",
+  "囊": "n",
+  "镶": "x",
+  "瓤": "r",
+  "罐": "g",
+  "矗": "c",
+  "乂": "y",
+  "乜": "n",
+  "兀": "w",
+  "弋": "y",
+  "孑": "j",
+  "孓": "j",
+  "幺": "y",
+  "亓": "q",
+  "韦": "w",
+  "廿": "n",
+  "丏": "m",
+  "卅": "s",
+  "仄": "z",
+  "厄": "e",
+  "仃": "d",
+  "仉": "z",
+  "仂": "l",
+  "兮": "x",
+  "刈": "y",
+  "爻": "y",
+  "卞": "b",
+  "闩": "s",
+  "讣": "f",
+  "尹": "y",
+  "夬": "g",
+  "爿": "p",
+  "毋": "w",
+  "邗": "h",
+  "邛": "q",
+  "艽": "j",
+  "艿": "n",
+  "札": "z",
+  "叵": "p",
+  "匝": "z",
+  "丕": "p",
+  "匜": "y",
+  "劢": "m",
+  "卟": "b",
+  "叱": "c",
+  "叻": "l",
+  "仨": "s",
+  "仕": "s",
+  "仟": "q",
+  "仡": "y",
+  "仫": "m",
+  "仞": "r",
+  "卮": "z",
+  "氐": "d",
+  "犰": "q",
+  "刍": "c",
+  "邝": "k",
+  "邙": "m",
+  "汀": "t",
+  "讦": "j",
+  "讧": "h",
+  "讪": "s",
+  "讫": "q",
+  "尻": "k",
+  "阡": "q",
+  "尕": "g",
+  "弁": "b",
+  "驭": "y",
+  "匡": "k",
+  "耒": "l",
+  "玎": "d",
+  "玑": "j",
+  "邢": "x",
+  "圩": "x",
+  "圬": "w",
+  "圭": "g",
+  "扦": "q",
+  "圪": "g",
+  "圳": "z",
+  "圹": "k",
+  "扪": "m",
+  "圮": "p",
+  "圯": "y",
+  "芊": "q",
+  "芍": "s",
+  "芄": "w",
+  "芨": "j",
+  "芑": "q",
+  "芎": "x",
+  "芗": "x",
+  "亘": "g",
+  "厍": "s",
+  "夼": "k",
+  "戍": "s",
+  "尥": "l",
+  "乩": "j",
+  "旯": "l",
+  "曳": "y",
+  "岌": "j",
+  "屺": "q",
+  "凼": "d",
+  "囡": "n",
+  "钇": "y",
+  "缶": "f",
+  "氘": "d",
+  "氖": "n",
+  "牝": "p",
+  "伎": "j",
+  "伛": "y",
+  "伢": "y",
+  "佤": "w",
+  "仵": "w",
+  "伥": "c",
+  "伧": "c",
+  "伉": "k",
+  "伫": "z",
+  "囟": "x",
+  "汆": "c",
+  "刖": "y",
+  "夙": "s",
+  "旮": "g",
+  "刎": "w",
+  "犷": "g",
+  "犸": "m",
+  "舛": "c",
+  "凫": "f",
+  "邬": "w",
+  "饧": "t",
+  "汕": "s",
+  "汔": "q",
+  "汐": "x",
+  "汲": "j",
+  "汜": "s",
+  "汊": "c",
+  "忖": "c",
+  "忏": "c",
+  "讴": "o",
+  "讵": "j",
+  "祁": "q",
+  "讷": "n",
+  "聿": "y",
+  "艮": "g",
+  "厾": "d",
+  "阱": "j",
+  "阮": "r",
+  "阪": "b",
+  "丞": "c",
+  "妁": "s",
+  "牟": "m",
+  "纡": "y",
+  "纣": "z",
+  "纥": "h",
+  "纨": "w",
+  "玕": "g",
+  "玙": "y",
+  "抟": "t",
+  "抔": "p",
+  "圻": "q",
+  "坂": "b",
+  "坍": "t",
+  "坞": "w",
+  "抃": "b",
+  "抉": "j",
+  "㧐": "s",
+  "芫": "y",
+  "邯": "h",
+  "芸": "y",
+  "芾": "f",
+  "苈": "l",
+  "苣": "j",
+  "芷": "z",
+  "芮": "r",
+  "苋": "x",
+  "芼": "m",
+  "苌": "c",
+  "苁": "c",
+  "芩": "q",
+  "芪": "q",
+  "芡": "q",
+  "芟": "s",
+  "苄": "b",
+  "苎": "z",
+  "苡": "y",
+  "杌": "w",
+  "杓": "s",
+  "杞": "q",
+  "杈": "c",
+  "忑": "t",
+  "孛": "b",
+  "邴": "b",
+  "邳": "p",
+  "矶": "j",
+  "奁": "l",
+  "豕": "s",
+  "忒": "t",
+  "欤": "y",
+  "轫": "r",
+  "迓": "y",
+  "邶": "b",
+  "忐": "t",
+  "卣": "y",
+  "邺": "y",
+  "旰": "g",
+  "呋": "f",
+  "呒": "f",
+  "呓": "y",
+  "呔": "d",
+  "呖": "l",
+  "呃": "e",
+  "旸": "y",
+  "吡": "b",
+  "町": "t",
+  "虬": "q",
+  "呗": "b",
+  "吽": "h",
+  "吣": "q",
+  "吲": "y",
+  "帏": "w",
+  "岐": "q",
+  "岈": "y",
+  "岘": "x",
+  "岑": "c",
+  "岚": "l",
+  "兕": "s",
+  "囵": "l",
+  "囫": "h",
+  "钊": "z",
+  "钋": "p",
+  "钌": "l",
+  "迕": "w",
+  "氙": "x",
+  "氚": "c",
+  "牤": "m",
+  "佞": "n",
+  "邱": "q",
+  "攸": "y",
+  "佚": "y",
+  "佝": "g",
+  "佟": "t",
+  "佗": "t",
+  "伽": "j",
+  "彷": "p",
+  "佘": "s",
+  "佥": "q",
+  "孚": "f",
+  "豸": "z",
+  "坌": "b",
+  "肟": "w",
+  "邸": "d",
+  "奂": "h",
+  "劬": "q",
+  "狄": "d",
+  "狁": "y",
+  "鸠": "j",
+  "邹": "z",
+  "饨": "t",
+  "饩": "x",
+  "饪": "r",
+  "饫": "y",
+  "饬": "c",
+  "亨": "h",
+  "庑": "w",
+  "庋": "g",
+  "疔": "d",
+  "疖": "j",
+  "肓": "h",
+  "闱": "w",
+  "闳": "h",
+  "闵": "m",
+  "羌": "q",
+  "炀": "y",
+  "沣": "f",
+  "沅": "y",
+  "沔": "m",
+  "沤": "o",
+  "沌": "d",
+  "沏": "q",
+  "沚": "z",
+  "汩": "g",
+  "汨": "m",
+  "沂": "y",
+  "汾": "f",
+  "沨": "f",
+  "汴": "b",
+  "汶": "w",
+  "沆": "h",
+  "沩": "w",
+  "泐": "l",
+  "怃": "w",
+  "怄": "o",
+  "忡": "c",
+  "忤": "w",
+  "忾": "k",
+  "怅": "c",
+  "忻": "x",
+  "忪": "s",
+  "怆": "c",
+  "忭": "b",
+  "忸": "n",
+  "诂": "g",
+  "诃": "h",
+  "诅": "z",
+  "诋": "d",
+  "诌": "z",
+  "诏": "z",
+  "诒": "y",
+  "孜": "z",
+  "陇": "l",
+  "陀": "t",
+  "陂": "b",
+  "陉": "x",
+  "妍": "y",
+  "妩": "w",
+  "妪": "y",
+  "妣": "b",
+  "妊": "r",
+  "妗": "j",
+  "妫": "g",
+  "妞": "n",
+  "姒": "s",
+  "妤": "y",
+  "邵": "s",
+  "劭": "s",
+  "刭": "j",
+  "甬": "y",
+  "邰": "t",
+  "纭": "y",
+  "纰": "p",
+  "纴": "r",
+  "纶": "l",
+  "纾": "s",
+  "玮": "w",
+  "玡": "y",
+  "玭": "p",
+  "玠": "j",
+  "玢": "b",
+  "玥": "y",
+  "玦": "j",
+  "盂": "y",
+  "忝": "t",
+  "匦": "g",
+  "坩": "g",
+  "抨": "p",
+  "拤": "q",
+  "坫": "d",
+  "拈": "n",
+  "垆": "l",
+  "抻": "c",
+  "劼": "j",
+  "拃": "z",
+  "拊": "f",
+  "坼": "c",
+  "坻": "d",
+  "㧟": "k",
+  "坨": "t",
+  "坭": "n",
+  "抿": "m",
+  "坳": "a",
+  "耶": "y",
+  "苷": "g",
+  "苯": "b",
+  "苤": "p",
+  "茏": "l",
+  "苫": "s",
+  "苜": "m",
+  "苴": "j",
+  "苒": "r",
+  "苘": "q",
+  "茌": "c",
+  "苻": "f",
+  "苓": "l",
+  "茚": "y",
+  "茆": "m",
+  "茑": "n",
+  "茓": "x",
+  "茔": "y",
+  "茕": "q",
+  "茀": "f",
+  "苕": "t",
+  "枥": "l",
+  "枇": "p",
+  "杪": "m",
+  "杳": "y",
+  "枧": "j",
+  "杵": "c",
+  "枨": "c",
+  "枞": "c",
+  "枋": "f",
+  "杻": "n",
+  "杷": "p",
+  "杼": "z",
+  "矸": "g",
+  "砀": "d",
+  "刳": "k",
+  "奄": "y",
+  "瓯": "o",
+  "殁": "m",
+  "郏": "j",
+  "轭": "e",
+  "郅": "z",
+  "鸢": "y",
+  "盱": "x",
+  "昊": "h",
+  "昙": "t",
+  "杲": "g",
+  "昃": "z",
+  "咂": "z",
+  "呸": "p",
+  "昕": "x",
+  "昀": "y",
+  "旻": "m",
+  "昉": "f",
+  "炅": "j",
+  "咔": "k",
+  "畀": "b",
+  "虮": "j",
+  "咀": "z",
+  "呷": "x",
+  "黾": "m",
+  "呱": "g",
+  "呤": "l",
+  "咚": "d",
+  "咆": "p",
+  "咛": "n",
+  "呶": "n",
+  "呣": "m",
+  "呦": "y",
+  "咝": "s",
+  "岢": "k",
+  "岿": "k",
+  "岬": "j",
+  "岫": "x",
+  "帙": "z",
+  "岣": "g",
+  "峁": "m",
+  "刿": "g",
+  "迥": "j",
+  "岷": "m",
+  "剀": "k",
+  "帔": "p",
+  "峄": "y",
+  "沓": "t",
+  "囹": "l",
+  "罔": "w",
+  "钍": "t",
+  "钎": "q",
+  "钏": "c",
+  "钒": "f",
+  "钕": "n",
+  "钗": "c",
+  "邾": "z",
+  "迮": "z",
+  "牦": "m",
+  "竺": "z",
+  "迤": "y",
+  "佶": "j",
+  "佬": "l",
+  "佰": "b",
+  "侑": "y",
+  "侉": "k",
+  "臾": "y",
+  "岱": "d",
+  "侗": "d",
+  "侃": "k",
+  "侏": "z",
+  "侩": "k",
+  "佻": "t",
+  "佾": "y",
+  "侪": "c",
+  "佼": "j",
+  "佯": "y",
+  "侬": "n",
+  "帛": "b",
+  "阜": "f",
+  "侔": "m",
+  "徂": "c",
+  "刽": "g",
+  "郄": "x",
+  "怂": "s",
+  "籴": "d",
+  "瓮": "w",
+  "戗": "q",
+  "肼": "j",
+  "䏝": "z",
+  "肽": "t",
+  "肱": "g",
+  "肫": "z",
+  "剁": "d",
+  "迩": "e",
+  "郇": "h",
+  "狙": "j",
+  "狎": "x",
+  "狍": "p",
+  "狒": "f",
+  "咎": "j",
+  "炙": "z",
+  "枭": "x",
+  "饯": "j",
+  "饴": "y",
+  "冽": "l",
+  "冼": "x",
+  "庖": "p",
+  "疠": "l",
+  "疝": "s",
+  "疡": "y",
+  "兖": "y",
+  "妾": "q",
+  "劾": "h",
+  "炜": "w",
+  "𬉼": "o",
+  "炖": "d",
+  "炘": "x",
+  "炝": "q",
+  "炔": "q",
+  "泔": "g",
+  "沭": "s",
+  "泷": "l",
+  "泸": "l",
+  "泱": "y",
+  "泅": "q",
+  "泗": "s",
+  "泠": "l",
+  "泺": "l",
+  "泖": "m",
+  "泫": "x",
+  "泮": "p",
+  "沱": "t",
+  "泯": "m",
+  "泓": "h",
+  "泾": "j",
+  "怙": "h",
+  "怵": "c",
+  "怦": "p",
+  "怛": "d",
+  "怏": "y",
+  "怍": "z",
+  "㤘": "z",
+  "怩": "n",
+  "怫": "f",
+  "怿": "y",
+  "宕": "d",
+  "穹": "q",
+  "宓": "m",
+  "诓": "k",
+  "诔": "l",
+  "诖": "g",
+  "诘": "j",
+  "戾": "l",
+  "诙": "h",
+  "戽": "h",
+  "郓": "y",
+  "衩": "c",
+  "祆": "x",
+  "祎": "y",
+  "祉": "z",
+  "祇": "q",
+  "诛": "z",
+  "诜": "s",
+  "诟": "g",
+  "诠": "q",
+  "诣": "y",
+  "诤": "z",
+  "诧": "c",
+  "诨": "h",
+  "诩": "x",
+  "戕": "q",
+  "孢": "b",
+  "亟": "j",
+  "陔": "g",
+  "妲": "d",
+  "妯": "z",
+  "姗": "s",
+  "帑": "t",
+  "弩": "n",
+  "孥": "n",
+  "驽": "n",
+  "虱": "s",
+  "迦": "j",
+  "迨": "d",
+  "绀": "g",
+  "绁": "x",
+  "绂": "f",
+  "驷": "s",
+  "驸": "f",
+  "绉": "z",
+  "绌": "c",
+  "驿": "y",
+  "骀": "d",
+  "甾": "z",
+  "珏": "j",
+  "珐": "f",
+  "珂": "k",
+  "珑": "l",
+  "玳": "d",
+  "珀": "p",
+  "顸": "h",
+  "珉": "m",
+  "珈": "j",
+  "拮": "j",
+  "垭": "y",
+  "挝": "w",
+  "垣": "y",
+  "挞": "t",
+  "垤": "d",
+  "赳": "j",
+  "贲": "b",
+  "垱": "d",
+  "垌": "d",
+  "郝": "h",
+  "垧": "s",
+  "垓": "g",
+  "挦": "x",
+  "垠": "y",
+  "茜": "q",
+  "荚": "j",
+  "荑": "y",
+  "贳": "s",
+  "荜": "b",
+  "莒": "j",
+  "茼": "t",
+  "茴": "h",
+  "茱": "z",
+  "莛": "t",
+  "荞": "q",
+  "茯": "f",
+  "荏": "r",
+  "荇": "x",
+  "荃": "q",
+  "荟": "h",
+  "荀": "x",
+  "茗": "m",
+  "荠": "q",
+  "茭": "j",
+  "茨": "c",
+  "垩": "e",
+  "荥": "y",
+  "荦": "l",
+  "荨": "q",
+  "荩": "j",
+  "剋": "k",
+  "荪": "s",
+  "茹": "r",
+  "荬": "m",
+  "荮": "z",
+  "柰": "n",
+  "栉": "z",
+  "柯": "k",
+  "柘": "z",
+  "栊": "l",
+  "柩": "j",
+  "枰": "p",
+  "栌": "l",
+  "柙": "x",
+  "枵": "x",
+  "柚": "y",
+  "枳": "z",
+  "柞": "z",
+  "柝": "t",
+  "栀": "z",
+  "柢": "d",
+  "栎": "l",
+  "枸": "g",
+  "柈": "p",
+  "柁": "t",
+  "枷": "j",
+  "柽": "c",
+  "剌": "l",
+  "酊": "d",
+  "郦": "l",
+  "甭": "b",
+  "砗": "c",
+  "砘": "d",
+  "砒": "p",
+  "斫": "z",
+  "砭": "b",
+  "砜": "f",
+  "奎": "k",
+  "耷": "d",
+  "虺": "h",
+  "殂": "c",
+  "殇": "s",
+  "殄": "t",
+  "殆": "d",
+  "轱": "g",
+  "轲": "k",
+  "轳": "l",
+  "轶": "y",
+  "轸": "z",
+  "虿": "c",
+  "毖": "b",
+  "觇": "c",
+  "尜": "g",
+  "哐": "k",
+  "眄": "m",
+  "眍": "k",
+  "𠳐": "b",
+  "郢": "y",
+  "眇": "m",
+  "眊": "m",
+  "眈": "d",
+  "禺": "y",
+  "哂": "s",
+  "咴": "h",
+  "曷": "h",
+  "昴": "m",
+  "昱": "y",
+  "昵": "n",
+  "咦": "y",
+  "哓": "x",
+  "哔": "b",
+  "畎": "q",
+  "毗": "p",
+  "呲": "c",
+  "胄": "z",
+  "畋": "t",
+  "畈": "f",
+  "虼": "g",
+  "虻": "m",
+  "盅": "z",
+  "咣": "g",
+  "哕": "y",
+  "剐": "g",
+  "郧": "y",
+  "咻": "x",
+  "囿": "y",
+  "咿": "y",
+  "哌": "p",
+  "哙": "k",
+  "哚": "d",
+  "咯": "g",
+  "咩": "m",
+  "咤": "z",
+  "哝": "n",
+  "哏": "g",
+  "哞": "m",
+  "峙": "z",
+  "峣": "y",
+  "罘": "f",
+  "帧": "z",
+  "峒": "d",
+  "峤": "q",
+  "峋": "x",
+  "峥": "z",
+  "贶": "k",
+  "钚": "b",
+  "钛": "t",
+  "钡": "b",
+  "钣": "b",
+  "钤": "q",
+  "钨": "w",
+  "钫": "f",
+  "钯": "b",
+  "氡": "d",
+  "氟": "f",
+  "牯": "g",
+  "郜": "g",
+  "秕": "b",
+  "秭": "z",
+  "竽": "y",
+  "笈": "j",
+  "笃": "d",
+  "俦": "c",
+  "俨": "y",
+  "俅": "q",
+  "俪": "l",
+  "叟": "s",
+  "垡": "f",
+  "牮": "j",
+  "俣": "y",
+  "俚": "l",
+  "皈": "g",
+  "俑": "y",
+  "俟": "s",
+  "逅": "h",
+  "徇": "x",
+  "徉": "y",
+  "舢": "s",
+  "俞": "y",
+  "郗": "c",
+  "俎": "z",
+  "郤": "x",
+  "爰": "y",
+  "郛": "f",
+  "瓴": "l",
+  "胨": "d",
+  "胪": "l",
+  "胛": "j",
+  "胂": "s",
+  "胙": "z",
+  "胍": "g",
+  "胗": "z",
+  "胝": "z",
+  "朐": "q",
+  "胫": "j",
+  "鸨": "b",
+  "匍": "p",
+  "狨": "r",
+  "狯": "k",
+  "飑": "b",
+  "狩": "s",
+  "狲": "s",
+  "訇": "h",
+  "逄": "p",
+  "昝": "z",
+  "饷": "x",
+  "饸": "h",
+  "饹": "g",
+  "胤": "y",
+  "孪": "l",
+  "娈": "l",
+  "弈": "y",
+  "奕": "y",
+  "庥": "x",
+  "疬": "l",
+  "疣": "y",
+  "疥": "j",
+  "疭": "z",
+  "庠": "x",
+  "竑": "h",
+  "彦": "y",
+  "飒": "s",
+  "闼": "t",
+  "闾": "l",
+  "闿": "k",
+  "阂": "h",
+  "羑": "y",
+  "迸": "b",
+  "籼": "x",
+  "酋": "q",
+  "炳": "b",
+  "炻": "s",
+  "炽": "c",
+  "炯": "j",
+  "烀": "h",
+  "炷": "z",
+  "烃": "t",
+  "洱": "e",
+  "洹": "h",
+  "洧": "w",
+  "洌": "l",
+  "浃": "j",
+  "洇": "y",
+  "洄": "h",
+  "洙": "z",
+  "涎": "x",
+  "洎": "j",
+  "洫": "x",
+  "浍": "h",
+  "洮": "t",
+  "洵": "x",
+  "浒": "h",
+  "浔": "x",
+  "浕": "j",
+  "洳": "r",
+  "恸": "t",
+  "恓": "x",
+  "恹": "y",
+  "恫": "d",
+  "恺": "k",
+  "恻": "c",
+  "恂": "x",
+  "恪": "k",
+  "恽": "y",
+  "宥": "y",
+  "扃": "j",
+  "衲": "n",
+  "衽": "r",
+  "衿": "j",
+  "袂": "m",
+  "祛": "q",
+  "祜": "h",
+  "祓": "f",
+  "祚": "z",
+  "诮": "q",
+  "祗": "z",
+  "祢": "m",
+  "诰": "g",
+  "诳": "k",
+  "鸩": "z",
+  "昶": "c",
+  "郡": "j",
+  "咫": "z",
+  "弭": "m",
+  "牁": "k",
+  "胥": "x",
+  "陛": "b",
+  "陟": "z",
+  "娅": "y",
+  "姮": "h",
+  "娆": "r",
+  "姝": "s",
+  "姣": "j",
+  "姘": "p",
+  "姹": "c",
+  "怼": "d",
+  "羿": "y",
+  "炱": "t",
+  "矜": "j",
+  "绔": "k",
+  "骁": "x",
+  "骅": "h",
+  "绗": "h",
+  "绛": "j",
+  "骈": "p",
+  "耖": "c",
+  "挈": "q",
+  "珥": "e",
+  "珙": "g",
+  "顼": "x",
+  "珰": "d",
+  "珩": "h",
+  "珧": "y",
+  "珣": "x",
+  "珞": "l",
+  "琤": "c",
+  "珲": "h",
+  "敖": "a",
+  "恚": "h",
+  "埔": "p",
+  "埕": "c",
+  "埘": "s",
+  "埙": "x",
+  "埚": "g",
+  "挹": "y",
+  "耆": "q",
+  "耄": "m",
+  "埒": "l",
+  "捋": "l",
+  "贽": "z",
+  "垸": "y",
+  "捃": "j",
+  "盍": "h",
+  "荸": "b",
+  "莆": "p",
+  "莳": "s",
+  "莴": "w",
+  "莪": "e",
+  "莠": "y",
+  "莓": "m",
+  "莜": "y",
+  "莅": "l",
+  "荼": "t",
+  "莩": "p",
+  "荽": "s",
+  "莸": "y",
+  "荻": "d",
+  "莘": "s",
+  "莎": "s",
+  "莞": "w",
+  "莨": "l",
+  "鸪": "g",
+  "莼": "c",
+  "栲": "k",
+  "栳": "l",
+  "郴": "c",
+  "桓": "h",
+  "桡": "r",
+  "桎": "z",
+  "桢": "z",
+  "桤": "q",
+  "梃": "t",
+  "栝": "g",
+  "桕": "j",
+  "桁": "h",
+  "桧": "g",
+  "桅": "w",
+  "栟": "b",
+  "桉": "a",
+  "栩": "x",
+  "逑": "q",
+  "逋": "b",
+  "彧": "y",
+  "鬲": "g",
+  "豇": "j",
+  "酐": "g",
+  "逦": "l",
+  "厝": "c",
+  "孬": "n",
+  "砝": "f",
+  "砹": "a",
+  "砺": "l",
+  "砧": "z",
+  "砷": "s",
+  "砟": "z",
+  "砼": "t",
+  "砥": "d",
+  "砣": "t",
+  "剞": "j",
+  "砻": "l",
+  "轼": "s",
+  "轾": "z",
+  "辂": "l",
+  "鸫": "d",
+  "趸": "d",
+  "龀": "c",
+  "鸬": "l",
+  "虔": "q",
+  "逍": "x",
+  "眬": "l",
+  "唛": "m",
+  "晟": "s",
+  "眩": "x",
+  "眙": "y",
+  "哧": "c",
+  "哽": "g",
+  "唔": "w",
+  "晁": "c",
+  "晏": "y",
+  "鸮": "x",
+  "趵": "b",
+  "趿": "t",
+  "畛": "z",
+  "蚨": "f",
+  "蚜": "y",
+  "蚍": "p",
+  "蚋": "r",
+  "蚬": "x",
+  "蚝": "h",
+  "蚧": "j",
+  "唢": "s",
+  "圄": "y",
+  "唣": "z",
+  "唏": "x",
+  "盎": "a",
+  "唑": "z",
+  "崂": "l",
+  "崃": "l",
+  "罡": "g",
+  "罟": "g",
+  "峪": "y",
+  "觊": "j",
+  "赅": "g",
+  "钰": "y",
+  "钲": "z",
+  "钴": "g",
+  "钵": "b",
+  "钹": "b",
+  "钺": "y",
+  "钽": "t",
+  "钼": "m",
+  "钿": "d",
+  "铀": "y",
+  "铂": "b",
+  "铄": "s",
+  "铆": "m",
+  "铈": "s",
+  "铉": "x",
+  "铊": "t",
+  "铋": "b",
+  "铌": "n",
+  "铍": "p",
+  "䥽": "p",
+  "铎": "d",
+  "氩": "y",
+  "氤": "y",
+  "氦": "h",
+  "毪": "m",
+  "舐": "s",
+  "秣": "m",
+  "秫": "s",
+  "盉": "h",
+  "笄": "j",
+  "笕": "j",
+  "笊": "z",
+  "笏": "h",
+  "笆": "b",
+  "俸": "f",
+  "倩": "q",
+  "俵": "b",
+  "偌": "r",
+  "俳": "p",
+  "俶": "c",
+  "倬": "z",
+  "倏": "s",
+  "恁": "n",
+  "倭": "w",
+  "倪": "n",
+  "俾": "b",
+  "倜": "t",
+  "隼": "s",
+  "隽": "j",
+  "倌": "g",
+  "倥": "k",
+  "臬": "n",
+  "皋": "g",
+  "郫": "p",
+  "倨": "j",
+  "衄": "n",
+  "颀": "q",
+  "徕": "l",
+  "舫": "f",
+  "釜": "f",
+  "奚": "x",
+  "衾": "q",
+  "胯": "k",
+  "胱": "g",
+  "胴": "d",
+  "胭": "y",
+  "脍": "k",
+  "胼": "p",
+  "朕": "z",
+  "脒": "m",
+  "胺": "a",
+  "鸱": "c",
+  "玺": "x",
+  "鸲": "q",
+  "狷": "j",
+  "猁": "l",
+  "狳": "y",
+  "猃": "x",
+  "狺": "y",
+  "逖": "t",
+  "桀": "j",
+  "袅": "n",
+  "饽": "b",
+  "凇": "s",
+  "栾": "l",
+  "挛": "l",
+  "亳": "b",
+  "疳": "g",
+  "疴": "k",
+  "疸": "d",
+  "疽": "j",
+  "痈": "y",
+  "疱": "p",
+  "痂": "j",
+  "痉": "j",
+  "衮": "g",
+  "凋": "d",
+  "颃": "h",
+  "恣": "z",
+  "旆": "p",
+  "旄": "m",
+  "旃": "z",
+  "阃": "k",
+  "阄": "j",
+  "訚": "y",
+  "阆": "l",
+  "恙": "y",
+  "粑": "b",
+  "朔": "s",
+  "郸": "d",
+  "烜": "x",
+  "烨": "y",
+  "烩": "h",
+  "烊": "y",
+  "剡": "y",
+  "郯": "t",
+  "烬": "j",
+  "涑": "s",
+  "浯": "w",
+  "涞": "l",
+  "涟": "l",
+  "娑": "s",
+  "涅": "n",
+  "涠": "w",
+  "浞": "z",
+  "涓": "j",
+  "浥": "y",
+  "涔": "c",
+  "浜": "b",
+  "浠": "x",
+  "浣": "h",
+  "浚": "j",
+  "悚": "s",
+  "悭": "q",
+  "悝": "k",
+  "悒": "y",
+  "悌": "t",
+  "悛": "q",
+  "宸": "c",
+  "窈": "y",
+  "剜": "w",
+  "诹": "z",
+  "冢": "z",
+  "诼": "z",
+  "袒": "t",
+  "袢": "p",
+  "祯": "z",
+  "诿": "w",
+  "谀": "y",
+  "谂": "s",
+  "谄": "c",
+  "谇": "s",
+  "屐": "j",
+  "屙": "e",
+  "陬": "z",
+  "勐": "m",
+  "奘": "z",
+  "牂": "z",
+  "蚩": "c",
+  "陲": "c",
+  "姬": "j",
+  "娠": "s",
+  "娌": "l",
+  "娉": "p",
+  "娲": "w",
+  "娩": "m",
+  "娴": "x",
+  "娣": "d",
+  "娓": "w",
+  "婀": "e",
+  "畚": "b",
+  "逡": "q",
+  "绠": "g",
+  "骊": "l",
+  "绡": "x",
+  "骋": "c",
+  "绥": "s",
+  "绦": "t",
+  "绨": "t",
+  "骎": "q",
+  "邕": "y",
+  "鸶": "s",
+  "彗": "h",
+  "耜": "s",
+  "焘": "t",
+  "舂": "c",
+  "琏": "l",
+  "琇": "x",
+  "麸": "f",
+  "揶": "y",
+  "埴": "z",
+  "埯": "a",
+  "捯": "d",
+  "掳": "l",
+  "掴": "g",
+  "埸": "y",
+  "埵": "d",
+  "赧": "n",
+  "埤": "p",
+  "捭": "b",
+  "逵": "k",
+  "埝": "n",
+  "堋": "p",
+  "堍": "t",
+  "掬": "j",
+  "鸷": "z",
+  "掖": "y",
+  "捽": "z",
+  "掊": "p",
+  "堉": "y",
+  "掸": "d",
+  "捩": "l",
+  "掮": "q",
+  "悫": "q",
+  "埭": "d",
+  "埽": "s",
+  "掇": "d",
+  "掼": "g",
+  "聃": "d",
+  "菁": "j",
+  "萁": "q",
+  "菘": "s",
+  "堇": "j",
+  "萘": "n",
+  "萋": "q",
+  "菽": "s",
+  "菖": "c",
+  "萜": "t",
+  "萸": "y",
+  "萑": "h",
+  "棻": "f",
+  "菔": "f",
+  "菟": "t",
+  "萏": "d",
+  "萃": "c",
+  "菏": "h",
+  "菹": "z",
+  "菪": "d",
+  "菅": "j",
+  "菀": "w",
+  "萦": "y",
+  "菰": "g",
+  "菡": "h",
+  "梵": "f",
+  "梿": "l",
+  "梏": "g",
+  "觋": "x",
+  "桴": "f",
+  "桷": "j",
+  "梓": "z",
+  "棁": "z",
+  "桫": "s",
+  "棂": "l",
+  "啬": "s",
+  "郾": "y",
+  "匮": "k",
+  "敕": "c",
+  "豉": "c",
+  "鄄": "j",
+  "酞": "t",
+  "酚": "f",
+  "戛": "j",
+  "硎": "x",
+  "硭": "m",
+  "硒": "x",
+  "硖": "x",
+  "硗": "q",
+  "硐": "d",
+  "硇": "n",
+  "硌": "g",
+  "鸸": "e",
+  "瓠": "h",
+  "匏": "p",
+  "厩": "j",
+  "龚": "g",
+  "殒": "y",
+  "殓": "l",
+  "殍": "p",
+  "赉": "l",
+  "雩": "y",
+  "辄": "z",
+  "堑": "q",
+  "眭": "s",
+  "眦": "z",
+  "啧": "z",
+  "晡": "b",
+  "晤": "w",
+  "眺": "t",
+  "眵": "c",
+  "眸": "m",
+  "圊": "q",
+  "喏": "n",
+  "喵": "m",
+  "啉": "l",
+  "勖": "x",
+  "晞": "x",
+  "唵": "a",
+  "晗": "h",
+  "冕": "m",
+  "啭": "z",
+  "畦": "q",
+  "趺": "f",
+  "啮": "n",
+  "跄": "q",
+  "蚶": "h",
+  "蛄": "g",
+  "蛎": "l",
+  "蛆": "q",
+  "蚰": "y",
+  "蛊": "g",
+  "圉": "y",
+  "蚱": "z",
+  "蛉": "l",
+  "蛏": "c",
+  "蚴": "y",
+  "啁": "z",
+  "啕": "t",
+  "唿": "h",
+  "啐": "c",
+  "唼": "s",
+  "唷": "y",
+  "啖": "d",
+  "啵": "b",
+  "啶": "d",
+  "啷": "l",
+  "唳": "l",
+  "唰": "s",
+  "啜": "c",
+  "帻": "z",
+  "崚": "l",
+  "崦": "y",
+  "帼": "g",
+  "崮": "g",
+  "崤": "x",
+  "崆": "k",
+  "赇": "q",
+  "赈": "z",
+  "赊": "s",
+  "铑": "l",
+  "铒": "e",
+  "铗": "j",
+  "铙": "n",
+  "铟": "y",
+  "铠": "k",
+  "铡": "z",
+  "铢": "z",
+  "铣": "x",
+  "铤": "t",
+  "铧": "h",
+  "铨": "q",
+  "铩": "s",
+  "铪": "h",
+  "铫": "y",
+  "铬": "g",
+  "铮": "z",
+  "铯": "s",
+  "铰": "j",
+  "铱": "y",
+  "铳": "c",
+  "铵": "a",
+  "铷": "r",
+  "氪": "k",
+  "牾": "w",
+  "鸹": "g",
+  "秾": "n",
+  "逶": "w",
+  "笺": "j",
+  "筇": "q",
+  "笸": "p",
+  "笪": "d",
+  "笮": "z",
+  "笠": "l",
+  "笥": "s",
+  "笤": "t",
+  "笳": "j",
+  "笾": "b",
+  "笞": "c",
+  "偾": "f",
+  "偃": "y",
+  "偕": "x",
+  "偈": "j",
+  "傀": "k",
+  "偬": "z",
+  "偻": "l",
+  "皑": "a",
+  "皎": "j",
+  "鸻": "h",
+  "徜": "c",
+  "舸": "g",
+  "舻": "l",
+  "舴": "z",
+  "舷": "x",
+  "龛": "k",
+  "翎": "l",
+  "脬": "p",
+  "脘": "w",
+  "脲": "n",
+  "匐": "f",
+  "猗": "y",
+  "猡": "l",
+  "猞": "s",
+  "猝": "c",
+  "斛": "h",
+  "猕": "m",
+  "馗": "k",
+  "馃": "g",
+  "馄": "h",
+  "鸾": "l",
+  "孰": "s",
+  "庹": "t",
+  "庾": "y",
+  "痔": "z",
+  "痍": "y",
+  "疵": "c",
+  "翊": "y",
+  "旌": "j",
+  "旎": "n",
+  "袤": "m",
+  "阇": "d",
+  "阈": "y",
+  "阉": "y",
+  "阊": "c",
+  "阋": "x",
+  "阍": "h",
+  "阏": "e",
+  "羟": "q",
+  "粝": "l",
+  "粕": "p",
+  "敝": "b",
+  "焐": "w",
+  "烯": "x",
+  "焓": "h",
+  "烽": "f",
+  "焖": "m",
+  "烷": "w",
+  "焗": "j",
+  "渍": "z",
+  "渚": "z",
+  "淇": "q",
+  "淅": "x",
+  "淞": "s",
+  "渎": "d",
+  "涿": "z",
+  "淖": "n",
+  "挲": "s",
+  "淠": "p",
+  "涸": "h",
+  "渑": "m",
+  "淦": "g",
+  "淝": "f",
+  "淬": "c",
+  "涪": "f",
+  "淙": "c",
+  "涫": "g",
+  "渌": "l",
+  "淄": "z",
+  "惬": "q",
+  "悻": "x",
+  "悱": "f",
+  "惝": "c",
+  "惘": "w",
+  "悸": "j",
+  "惆": "c",
+  "惚": "h",
+  "惇": "d",
+  "惮": "d",
+  "窕": "t",
+  "谌": "c",
+  "谏": "j",
+  "扈": "h",
+  "皲": "j",
+  "谑": "x",
+  "裆": "d",
+  "袷": "j",
+  "裉": "k",
+  "谒": "y",
+  "谔": "e",
+  "谕": "y",
+  "谖": "x",
+  "谗": "c",
+  "谙": "a",
+  "谛": "d",
+  "谝": "p",
+  "逯": "l",
+  "郿": "m",
+  "隈": "w",
+  "粜": "t",
+  "隍": "h",
+  "隗": "w",
+  "婧": "j",
+  "婊": "b",
+  "婕": "j",
+  "娼": "c",
+  "婢": "b",
+  "婵": "c",
+  "胬": "n",
+  "袈": "j",
+  "翌": "y",
+  "恿": "y",
+  "欸": "a",
+  "绫": "l",
+  "骐": "q",
+  "绮": "q",
+  "绯": "f",
+  "绱": "s",
+  "骒": "k",
+  "绲": "g",
+  "骓": "z",
+  "绶": "s",
+  "绺": "l",
+  "绻": "q",
+  "绾": "w",
+  "骖": "c",
+  "缁": "z",
+  "耠": "h",
+  "琫": "b",
+  "琵": "p",
+  "琶": "p",
+  "琪": "q",
+  "瑛": "y",
+  "琦": "q",
+  "琥": "h",
+  "琨": "k",
+  "靓": "l",
+  "琰": "y",
+  "琮": "c",
+  "琯": "g",
+  "琬": "w",
+  "琛": "c",
+  "琚": "j",
+  "辇": "n",
+  "鼋": "y",
+  "揳": "x",
+  "堞": "d",
+  "搽": "c",
+  "揸": "z",
+  "揠": "y",
+  "堙": "y",
+  "趄": "j",
+  "揖": "y",
+  "颉": "j",
+  "塄": "l",
+  "揿": "q",
+  "耋": "d",
+  "揄": "y",
+  "蛩": "q",
+  "蛰": "z",
+  "塆": "w",
+  "摒": "b",
+  "揆": "k",
+  "掾": "y",
+  "聒": "g",
+  "葑": "f",
+  "葚": "s",
+  "靰": "w",
+  "靸": "s",
+  "葳": "w",
+  "葺": "q",
+  "葸": "x",
+  "萼": "e",
+  "葆": "b",
+  "葩": "p",
+  "葶": "t",
+  "蒌": "l",
+  "萱": "x",
+  "戟": "j",
+  "葭": "j",
+  "楮": "c",
+  "棼": "f",
+  "椟": "d",
+  "棹": "z",
+  "椤": "l",
+  "棰": "c",
+  "赍": "j",
+  "椋": "l",
+  "椁": "g",
+  "椪": "p",
+  "棣": "d",
+  "椐": "j",
+  "鹁": "b",
+  "覃": "q",
+  "酤": "g",
+  "酢": "c",
+  "酡": "t",
+  "鹂": "l",
+  "厥": "j",
+  "殚": "d",
+  "殛": "j",
+  "雯": "w",
+  "雱": "p",
+  "辊": "g",
+  "辋": "w",
+  "椠": "q",
+  "辍": "c",
+  "辎": "z",
+  "斐": "f",
+  "睄": "q",
+  "睑": "j",
+  "睇": "d",
+  "睃": "s",
+  "戢": "j",
+  "喋": "d",
+  "嗒": "d",
+  "喃": "n",
+  "喱": "l",
+  "喹": "k",
+  "晷": "g",
+  "喈": "j",
+  "跖": "z",
+  "跗": "f",
+  "跞": "l",
+  "跚": "s",
+  "跎": "t",
+  "跏": "j",
+  "跆": "t",
+  "蛱": "j",
+  "蛲": "n",
+  "蛭": "z",
+  "蛳": "s",
+  "蛐": "q",
+  "蛔": "h",
+  "蛞": "k",
+  "蛴": "q",
+  "蛟": "j",
+  "蛘": "y",
+  "喁": "y",
+  "喟": "k",
+  "啾": "j",
+  "嗖": "s",
+  "喑": "y",
+  "嗟": "j",
+  "喽": "l",
+  "嗞": "z",
+  "喀": "k",
+  "喔": "w",
+  "喙": "h",
+  "嵘": "r",
+  "嵖": "c",
+  "崴": "w",
+  "遄": "c",
+  "詈": "l",
+  "嵎": "y",
+  "崽": "z",
+  "嵬": "w",
+  "嵛": "y",
+  "嵯": "c",
+  "嵝": "l",
+  "嵫": "z",
+  "幄": "w",
+  "嵋": "m",
+  "赕": "d",
+  "铻": "w",
+  "铼": "l",
+  "铿": "k",
+  "锃": "z",
+  "锂": "l",
+  "锆": "g",
+  "锇": "e",
+  "锉": "c",
+  "锏": "j",
+  "锑": "t",
+  "锒": "l",
+  "锔": "j",
+  "锕": "a",
+  "掣": "c",
+  "矬": "c",
+  "氰": "q",
+  "毳": "c",
+  "毽": "j",
+  "犊": "d",
+  "犄": "j",
+  "犋": "j",
+  "鹄": "h",
+  "犍": "j",
+  "嵇": "j",
+  "黍": "s",
+  "稃": "f",
+  "稂": "l",
+  "筚": "b",
+  "筵": "y",
+  "筌": "q",
+  "傣": "d",
+  "傈": "l",
+  "舄": "x",
+  "牍": "d",
+  "傥": "t",
+  "傧": "b",
+  "遑": "h",
+  "傩": "n",
+  "遁": "d",
+  "徨": "h",
+  "媭": "x",
+  "畲": "s",
+  "弑": "s",
+  "颌": "h",
+  "翕": "x",
+  "釉": "y",
+  "鹆": "y",
+  "舜": "s",
+  "貂": "d",
+  "腈": "j",
+  "腌": "y",
+  "腓": "f",
+  "腆": "t",
+  "腴": "y",
+  "腑": "f",
+  "腚": "d",
+  "腱": "j",
+  "鱿": "y",
+  "鲀": "t",
+  "鲂": "f",
+  "颍": "y",
+  "猢": "h",
+  "猹": "c",
+  "猥": "w",
+  "飓": "j",
+  "觞": "s",
+  "觚": "g",
+  "猱": "n",
+  "颎": "j",
+  "飧": "s",
+  "馇": "c",
+  "馊": "s",
+  "亵": "x",
+  "脔": "l",
+  "裒": "p",
+  "痣": "z",
+  "痨": "l",
+  "痦": "w",
+  "痞": "p",
+  "痤": "c",
+  "痫": "x",
+  "痧": "s",
+  "赓": "g",
+  "竦": "s",
+  "瓿": "b",
+  "啻": "c",
+  "颏": "k",
+  "鹇": "x",
+  "阑": "l",
+  "阒": "q",
+  "阕": "q",
+  "粞": "x",
+  "遒": "q",
+  "孳": "z",
+  "焯": "c",
+  "焜": "k",
+  "焙": "b",
+  "焱": "y",
+  "鹈": "t",
+  "湛": "z",
+  "渫": "x",
+  "湮": "y",
+  "湎": "m",
+  "湜": "s",
+  "渭": "w",
+  "湍": "t",
+  "湫": "q",
+  "溲": "s",
+  "湟": "h",
+  "溆": "x",
+  "湲": "y",
+  "湔": "j",
+  "湉": "t",
+  "渥": "w",
+  "湄": "m",
+  "滁": "c",
+  "愠": "y",
+  "惺": "x",
+  "愦": "k",
+  "惴": "z",
+  "愀": "q",
+  "愎": "b",
+  "愔": "y",
+  "喾": "k",
+  "寐": "m",
+  "谟": "m",
+  "扉": "f",
+  "裢": "l",
+  "裎": "c",
+  "裥": "j",
+  "祾": "l",
+  "祺": "q",
+  "谠": "d",
+  "幂": "m",
+  "谡": "s",
+  "谥": "s",
+  "谧": "m",
+  "遐": "x",
+  "孱": "c",
+  "弼": "b",
+  "巽": "x",
+  "骘": "z",
+  "媪": "a",
+  "媛": "y",
+  "婷": "t",
+  "巯": "q",
+  "翚": "h",
+  "皴": "c",
+  "婺": "w",
+  "骛": "w",
+  "缂": "k",
+  "缃": "x",
+  "缄": "j",
+  "彘": "z",
+  "缇": "t",
+  "缈": "m",
+  "缌": "s",
+  "缑": "g",
+  "缒": "z",
+  "缗": "m",
+  "飨": "x",
+  "耢": "l",
+  "瑚": "h",
+  "瑁": "m",
+  "瑜": "y",
+  "瑗": "y",
+  "瑄": "x",
+  "瑕": "x",
+  "遨": "a",
+  "骜": "a",
+  "韫": "y",
+  "髡": "k",
+  "塬": "y",
+  "鄢": "y",
+  "趔": "l",
+  "趑": "z",
+  "摅": "s",
+  "摁": "e",
+  "蜇": "z",
+  "搋": "c",
+  "搪": "t",
+  "搐": "c",
+  "搛": "j",
+  "搠": "s",
+  "摈": "b",
+  "彀": "g",
+  "毂": "g",
+  "搦": "n",
+  "搡": "s",
+  "蓁": "z",
+  "戡": "k",
+  "蓍": "s",
+  "鄞": "y",
+  "靳": "j",
+  "蓐": "r",
+  "蓦": "m",
+  "鹋": "m",
+  "蒽": "e",
+  "蓓": "b",
+  "蓖": "b",
+  "蓊": "w",
+  "蒯": "k",
+  "蓟": "j",
+  "蓑": "s",
+  "蒿": "h",
+  "蒺": "j",
+  "蓠": "l",
+  "蒟": "j",
+  "蒡": "b",
+  "蒹": "j",
+  "蒴": "s",
+  "蒗": "l",
+  "蓥": "y",
+  "颐": "y",
+  "楔": "x",
+  "楠": "n",
+  "楂": "z",
+  "楝": "l",
+  "楫": "j",
+  "楸": "q",
+  "椴": "d",
+  "槌": "c",
+  "楯": "d",
+  "皙": "x",
+  "榈": "l",
+  "槎": "c",
+  "榉": "j",
+  "楦": "x",
+  "楣": "m",
+  "楹": "y",
+  "椽": "c",
+  "裘": "q",
+  "剽": "p",
+  "甄": "z",
+  "酮": "t",
+  "酰": "x",
+  "酯": "z",
+  "酩": "m",
+  "蜃": "s",
+  "碛": "q",
+  "碓": "d",
+  "硼": "p",
+  "碉": "d",
+  "碚": "b",
+  "碇": "d",
+  "碜": "c",
+  "鹌": "a",
+  "辏": "c",
+  "龃": "j",
+  "龅": "b",
+  "訾": "z",
+  "粲": "c",
+  "虞": "y",
+  "睚": "y",
+  "嗪": "q",
+  "韪": "w",
+  "嗷": "a",
+  "嗉": "s",
+  "睨": "n",
+  "睢": "s",
+  "雎": "j",
+  "睥": "p",
+  "嘟": "d",
+  "嗑": "k",
+  "嗫": "n",
+  "嗬": "h",
+  "嗔": "c",
+  "嗝": "g",
+  "戥": "d",
+  "嗄": "a",
+  "煦": "x",
+  "暄": "x",
+  "遢": "t",
+  "暌": "k",
+  "跬": "k",
+  "跶": "d",
+  "跸": "b",
+  "跐": "c",
+  "跣": "x",
+  "跹": "x",
+  "跻": "j",
+  "蛸": "s",
+  "蜊": "l",
+  "蜍": "c",
+  "蜉": "f",
+  "蜣": "q",
+  "畹": "w",
+  "蛹": "y",
+  "嗣": "s",
+  "嗯": "n",
+  "嗥": "h",
+  "嗲": "d",
+  "嗳": "a",
+  "嗌": "a",
+  "嗍": "s",
+  "嗨": "h",
+  "嗐": "h",
+  "嗤": "c",
+  "嗵": "t",
+  "罨": "y",
+  "嵊": "s",
+  "嵩": "s",
+  "嵴": "j",
+  "骰": "t",
+  "锗": "z",
+  "锛": "b",
+  "锜": "q",
+  "锝": "d",
+  "锞": "k",
+  "锟": "k",
+  "锢": "g",
+  "锨": "x",
+  "锩": "j",
+  "锭": "d",
+  "锱": "z",
+  "雉": "z",
+  "氲": "y",
+  "犏": "p",
+  "歃": "s",
+  "稞": "k",
+  "稗": "b",
+  "稔": "r",
+  "筠": "y",
+  "筢": "p",
+  "筮": "s",
+  "筲": "s",
+  "筱": "x",
+  "牒": "d",
+  "煲": "b",
+  "敫": "j",
+  "徭": "y",
+  "愆": "q",
+  "艄": "s",
+  "觎": "y",
+  "毹": "s",
+  "貊": "m",
+  "貅": "x",
+  "貉": "m",
+  "颔": "h",
+  "腠": "c",
+  "腩": "n",
+  "腼": "m",
+  "腭": "e",
+  "腧": "s",
+  "塍": "c",
+  "媵": "y",
+  "詹": "z",
+  "鲅": "b",
+  "鲆": "p",
+  "鲇": "n",
+  "鲈": "l",
+  "稣": "s",
+  "鲋": "f",
+  "鲐": "t",
+  "肄": "y",
+  "鹐": "q",
+  "飕": "s",
+  "觥": "g",
+  "遛": "l",
+  "馐": "x",
+  "鹑": "c",
+  "亶": "d",
+  "瘃": "z",
+  "痱": "f",
+  "痼": "g",
+  "痿": "w",
+  "瘐": "y",
+  "瘁": "c",
+  "瘆": "s",
+  "麂": "j",
+  "裔": "y",
+  "歆": "x",
+  "旒": "l",
+  "雍": "y",
+  "阖": "h",
+  "阗": "t",
+  "阙": "q",
+  "羧": "s",
+  "豢": "h",
+  "粳": "j",
+  "猷": "y",
+  "煳": "h",
+  "煜": "y",
+  "煨": "w",
+  "煅": "d",
+  "煊": "x",
+  "煸": "b",
+  "煺": "t",
+  "滟": "y",
+  "溱": "z",
+  "溘": "k",
+  "漭": "m",
+  "滢": "y",
+  "溥": "p",
+  "溧": "l",
+  "溽": "r",
+  "裟": "s",
+  "溻": "t",
+  "溷": "h",
+  "滗": "b",
+  "滫": "x",
+  "溴": "x",
+  "滏": "f",
+  "滃": "w",
+  "滦": "l",
+  "溏": "t",
+  "滂": "p",
+  "滓": "z",
+  "溟": "m",
+  "滪": "y",
+  "愫": "s",
+  "慑": "s",
+  "慊": "q",
+  "鲎": "h",
+  "骞": "q",
+  "窦": "d",
+  "窠": "k",
+  "窣": "s",
+  "裱": "b",
+  "褚": "c",
+  "裨": "b",
+  "裾": "j",
+  "裰": "d",
+  "禊": "x",
+  "谩": "m",
+  "谪": "z",
+  "媾": "g",
+  "嫫": "m",
+  "媲": "p",
+  "嫒": "a",
+  "嫔": "p",
+  "媸": "c",
+  "缙": "j",
+  "缜": "z",
+  "缛": "r",
+  "辔": "p",
+  "骝": "l",
+  "缟": "g",
+  "缡": "l",
+  "缢": "y",
+  "缣": "j",
+  "骟": "s",
+  "耥": "t",
+  "璈": "a",
+  "瑶": "y",
+  "瑭": "t",
+  "獒": "a",
+  "觏": "g",
+  "慝": "t",
+  "嫠": "l",
+  "韬": "t",
+  "叆": "a",
+  "髦": "m",
+  "摽": "b",
+  "墁": "m",
+  "撂": "l",
+  "摞": "l",
+  "撄": "y",
+  "翥": "z",
+  "踅": "x",
+  "摭": "z",
+  "墉": "y",
+  "墒": "s",
+  "榖": "g",
+  "綦": "q",
+  "蔫": "n",
+  "蔷": "q",
+  "靺": "m",
+  "靼": "d",
+  "鞅": "y",
+  "靿": "y",
+  "甍": "m",
+  "蔸": "d",
+  "蔟": "c",
+  "蔺": "l",
+  "戬": "j",
+  "蕖": "q",
+  "蔻": "k",
+  "蓿": "x",
+  "斡": "w",
+  "鹕": "h",
+  "蓼": "l",
+  "榛": "z",
+  "榧": "f",
+  "榻": "t",
+  "榫": "s",
+  "榭": "x",
+  "槔": "g",
+  "榱": "c",
+  "槁": "g",
+  "槟": "b",
+  "槠": "z",
+  "榷": "q",
+  "僰": "b",
+  "酽": "y",
+  "酶": "m",
+  "酹": "l",
+  "厮": "s",
+  "碡": "z",
+  "碴": "c",
+  "碣": "j",
+  "碲": "d",
+  "磋": "c",
+  "臧": "z",
+  "豨": "x",
+  "殡": "b",
+  "霆": "t",
+  "霁": "j",
+  "辕": "y",
+  "蜚": "f",
+  "裴": "p",
+  "翡": "f",
+  "龇": "z",
+  "龈": "y",
+  "睿": "r",
+  "䁖": "l",
+  "睽": "k",
+  "嘞": "l",
+  "嘈": "c",
+  "嘌": "p",
+  "嘁": "q",
+  "嘎": "g",
+  "暧": "a",
+  "暝": "m",
+  "踌": "c",
+  "踉": "l",
+  "蜞": "q",
+  "蜥": "x",
+  "蜮": "y",
+  "蝈": "g",
+  "蜴": "y",
+  "蜱": "p",
+  "蜩": "t",
+  "蜷": "q",
+  "蜿": "w",
+  "螂": "l",
+  "蜢": "m",
+  "嘘": "x",
+  "嘡": "t",
+  "鹗": "e",
+  "嘣": "b",
+  "嘤": "y",
+  "嘚": "d",
+  "嗾": "s",
+  "嘧": "m",
+  "罴": "p",
+  "罱": "l",
+  "幔": "m",
+  "嶂": "z",
+  "幛": "z",
+  "赙": "f",
+  "罂": "y",
+  "骷": "k",
+  "骶": "d",
+  "鹘": "h",
+  "锲": "q",
+  "锴": "k",
+  "锶": "s",
+  "锷": "e",
+  "锸": "c",
+  "锵": "q",
+  "镁": "m",
+  "镂": "l",
+  "犒": "k",
+  "箐": "j",
+  "箦": "z",
+  "箧": "q",
+  "箍": "g",
+  "箸": "z",
+  "箬": "r",
+  "箅": "b",
+  "箪": "d",
+  "箔": "b",
+  "箜": "k",
+  "箢": "y",
+  "箓": "l",
+  "毓": "y",
+  "僖": "x",
+  "儆": "j",
+  "僳": "s",
+  "僭": "j",
+  "劁": "q",
+  "僮": "t",
+  "魃": "b",
+  "魆": "x",
+  "睾": "g",
+  "艋": "m",
+  "鄱": "p",
+  "膈": "g",
+  "膑": "b",
+  "鲑": "g",
+  "鲔": "w",
+  "鲚": "j",
+  "鲛": "j",
+  "鲟": "x",
+  "獐": "z",
+  "觫": "s",
+  "雒": "l",
+  "夤": "y",
+  "馑": "j",
+  "銮": "l",
+  "塾": "s",
+  "麽": "m",
+  "瘌": "l",
+  "瘊": "h",
+  "瘘": "l",
+  "瘙": "s",
+  "廖": "l",
+  "韶": "s",
+  "旖": "y",
+  "膂": "l",
+  "阚": "k",
+  "鄯": "s",
+  "鲞": "x",
+  "粿": "g",
+  "粼": "l",
+  "粽": "z",
+  "糁": "s",
+  "槊": "s",
+  "鹚": "c",
+  "熘": "l",
+  "熥": "t",
+  "潢": "h",
+  "漕": "c",
+  "滹": "h",
+  "漯": "l",
+  "漶": "h",
+  "潋": "l",
+  "潴": "z",
+  "漪": "y",
+  "漉": "l",
+  "漳": "z",
+  "漩": "x",
+  "澉": "g",
+  "潍": "w",
+  "慵": "y",
+  "搴": "q",
+  "窨": "x",
+  "寤": "w",
+  "綮": "q",
+  "谮": "z",
+  "褡": "d",
+  "褙": "b",
+  "褓": "b",
+  "褛": "l",
+  "褊": "b",
+  "谯": "q",
+  "谰": "l",
+  "谲": "j",
+  "暨": "j",
+  "屣": "x",
+  "鹛": "m",
+  "嫣": "y",
+  "嫱": "q",
+  "嫖": "p",
+  "嫦": "c",
+  "嫚": "m",
+  "嫘": "l",
+  "嫡": "d",
+  "鼐": "n",
+  "翟": "z",
+  "瞀": "m",
+  "鹜": "w",
+  "骠": "p",
+  "缥": "p",
+  "缦": "m",
+  "缧": "l",
+  "缨": "y",
+  "骢": "c",
+  "缪": "m",
+  "缫": "s",
+  "耦": "o",
+  "耧": "l",
+  "瑾": "j",
+  "璜": "h",
+  "璀": "c",
+  "璎": "y",
+  "璁": "c",
+  "璋": "z",
+  "璇": "x",
+  "奭": "s",
+  "髯": "r",
+  "髫": "t",
+  "撷": "x",
+  "撅": "j",
+  "赭": "z",
+  "撸": "l",
+  "鋆": "y",
+  "撙": "z",
+  "撺": "c",
+  "墀": "c",
+  "聩": "k",
+  "觐": "j",
+  "鞑": "d",
+  "蕙": "h",
+  "鞒": "q",
+  "蕈": "x",
+  "蕨": "j",
+  "蕤": "r",
+  "蕞": "z",
+  "蕺": "j",
+  "瞢": "m",
+  "蕃": "f",
+  "蕲": "q",
+  "赜": "z",
+  "槿": "j",
+  "樯": "q",
+  "槭": "q",
+  "樗": "c",
+  "樘": "c",
+  "樊": "f",
+  "槲": "h",
+  "醌": "k",
+  "醅": "p",
+  "靥": "y",
+  "魇": "y",
+  "餍": "y",
+  "磔": "z",
+  "磙": "g",
+  "霈": "p",
+  "辘": "l",
+  "龉": "y",
+  "龊": "c",
+  "觑": "q",
+  "瞌": "k",
+  "瞋": "c",
+  "瞑": "m",
+  "嘭": "p",
+  "噎": "y",
+  "噶": "g",
+  "颙": "y",
+  "暹": "x",
+  "噘": "j",
+  "踔": "c",
+  "踝": "h",
+  "踟": "c",
+  "踒": "w",
+  "踬": "z",
+  "踮": "d",
+  "踯": "z",
+  "踺": "j",
+  "踞": "j",
+  "蝽": "c",
+  "蝾": "r",
+  "蝻": "n",
+  "蝰": "k",
+  "蝮": "f",
+  "螋": "s",
+  "蝓": "y",
+  "蝣": "y",
+  "蝼": "l",
+  "噗": "p",
+  "嘬": "z",
+  "颚": "e",
+  "噍": "j",
+  "噢": "o",
+  "噙": "q",
+  "噜": "l",
+  "噌": "c",
+  "噔": "d",
+  "颛": "z",
+  "幞": "f",
+  "幡": "f",
+  "嶙": "l",
+  "嶝": "d",
+  "骺": "h",
+  "骼": "g",
+  "骸": "h",
+  "镊": "n",
+  "镉": "g",
+  "镌": "j",
+  "镍": "n",
+  "镏": "l",
+  "镒": "y",
+  "镓": "j",
+  "镔": "b",
+  "稷": "j",
+  "箴": "z",
+  "篑": "k",
+  "篁": "h",
+  "篌": "h",
+  "篆": "z",
+  "牖": "y",
+  "儋": "d",
+  "徵": "z",
+  "磐": "p",
+  "虢": "g",
+  "鹞": "y",
+  "膘": "b",
+  "滕": "t",
+  "鲠": "g",
+  "鲡": "l",
+  "鲢": "l",
+  "鲣": "j",
+  "鲥": "s",
+  "鲧": "g",
+  "鲩": "h",
+  "獗": "j",
+  "獠": "l",
+  "觯": "z",
+  "馓": "s",
+  "馔": "z",
+  "麾": "h",
+  "廛": "c",
+  "瘛": "c",
+  "瘼": "m",
+  "瘢": "b",
+  "瘠": "j",
+  "齑": "j",
+  "羯": "j",
+  "羰": "t",
+  "𥻗": "c",
+  "遴": "l",
+  "糌": "z",
+  "糍": "c",
+  "糅": "r",
+  "熜": "c",
+  "熵": "s",
+  "熠": "y",
+  "澍": "s",
+  "澌": "s",
+  "潸": "s",
+  "潦": "l",
+  "潲": "s",
+  "鋈": "w",
+  "潟": "x",
+  "潼": "t",
+  "潺": "c",
+  "憬": "j",
+  "憧": "c",
+  "寮": "l",
+  "窳": "y",
+  "谳": "y",
+  "褴": "l",
+  "褟": "t",
+  "褫": "c",
+  "谵": "z",
+  "熨": "y",
+  "屦": "j",
+  "嬉": "x",
+  "勰": "x",
+  "戮": "l",
+  "蝥": "m",
+  "缬": "x",
+  "缮": "s",
+  "缯": "z",
+  "骣": "c",
+  "畿": "j",
+  "耩": "j",
+  "耨": "n",
+  "耪": "p",
+  "璞": "p",
+  "璟": "j",
+  "靛": "d",
+  "璠": "f",
+  "璘": "l",
+  "聱": "a",
+  "螯": "a",
+  "髻": "j",
+  "髭": "z",
+  "髹": "x",
+  "擀": "g",
+  "熹": "x",
+  "甏": "b",
+  "擞": "s",
+  "縠": "h",
+  "磬": "q",
+  "颞": "n",
+  "蕻": "h",
+  "鞘": "q",
+  "颟": "m",
+  "薤": "x",
+  "薨": "h",
+  "檠": "q",
+  "薏": "y",
+  "薮": "s",
+  "薜": "b",
+  "薅": "h",
+  "樾": "y",
+  "橛": "j",
+  "橇": "q",
+  "樵": "q",
+  "檎": "q",
+  "橹": "l",
+  "樽": "z",
+  "樨": "x",
+  "橼": "y",
+  "墼": "j",
+  "橐": "t",
+  "翮": "h",
+  "醛": "q",
+  "醐": "h",
+  "醍": "t",
+  "醚": "m",
+  "磲": "q",
+  "赝": "y",
+  "飙": "b",
+  "殪": "y",
+  "霖": "l",
+  "霏": "f",
+  "霓": "n",
+  "錾": "z",
+  "辚": "l",
+  "臻": "z",
+  "遽": "j",
+  "氅": "c",
+  "瞟": "p",
+  "瞠": "c",
+  "瞰": "k",
+  "嚄": "h",
+  "嚆": "h",
+  "噤": "j",
+  "暾": "t",
+  "蹀": "d",
+  "踹": "c",
+  "踵": "z",
+  "踽": "j",
+  "蹉": "c",
+  "蹁": "p",
+  "螨": "m",
+  "蟒": "m",
+  "螈": "y",
+  "螅": "x",
+  "螭": "c",
+  "螠": "y",
+  "螟": "m",
+  "噱": "j",
+  "噬": "s",
+  "噫": "y",
+  "噻": "s",
+  "噼": "p",
+  "罹": "l",
+  "圜": "h",
+  "䦃": "z",
+  "镖": "b",
+  "镗": "t",
+  "镘": "m",
+  "镚": "b",
+  "镛": "y",
+  "镝": "d",
+  "镞": "z",
+  "镠": "l",
+  "氇": "l",
+  "氆": "p",
+  "憩": "q",
+  "穑": "s",
+  "篝": "g",
+  "篥": "l",
+  "篦": "b",
+  "篪": "c",
+  "篙": "g",
+  "盥": "g",
+  "劓": "y",
+  "翱": "a",
+  "魉": "l",
+  "魈": "x",
+  "徼": "j",
+  "歙": "x",
+  "膳": "s",
+  "膦": "l",
+  "膙": "j",
+  "鲮": "l",
+  "鲱": "f",
+  "鲲": "k",
+  "鲳": "c",
+  "鲴": "g",
+  "鲵": "n",
+  "鲷": "d",
+  "鲻": "z",
+  "獴": "m",
+  "獭": "t",
+  "獬": "x",
+  "邂": "x",
+  "鹧": "z",
+  "廨": "x",
+  "赟": "y",
+  "瘰": "l",
+  "廪": "l",
+  "瘿": "y",
+  "瘵": "z",
+  "瘴": "z",
+  "癃": "l",
+  "瘳": "c",
+  "斓": "l",
+  "麇": "j",
+  "麈": "z",
+  "嬴": "y",
+  "壅": "y",
+  "羲": "x",
+  "糗": "q",
+  "瞥": "p",
+  "甑": "z",
+  "燎": "l",
+  "燠": "y",
+  "燔": "f",
+  "燧": "s",
+  "濑": "l",
+  "濉": "s",
+  "潞": "l",
+  "澧": "l",
+  "澹": "d",
+  "澥": "x",
+  "澶": "c",
+  "濂": "l",
+  "褰": "q",
+  "寰": "h",
+  "窸": "x",
+  "褶": "z",
+  "禧": "x",
+  "嬖": "b",
+  "犟": "j",
+  "隰": "x",
+  "嬗": "s",
+  "颡": "s",
+  "缱": "q",
+  "缲": "q",
+  "缳": "h",
+  "璨": "c",
+  "璩": "q",
+  "璐": "l",
+  "璪": "z",
+  "螫": "s",
+  "擤": "x",
+  "壕": "h",
+  "觳": "h",
+  "罄": "q",
+  "擢": "z",
+  "薹": "t",
+  "鞡": "l",
+  "鞬": "j",
+  "薷": "r",
+  "薰": "x",
+  "藓": "x",
+  "藁": "g",
+  "檄": "x",
+  "檩": "l",
+  "懋": "m",
+  "醢": "h",
+  "翳": "y",
+  "礅": "d",
+  "磴": "d",
+  "鹩": "l",
+  "龋": "q",
+  "龌": "w",
+  "豳": "b",
+  "壑": "h",
+  "黻": "f",
+  "嚏": "t",
+  "嚅": "r",
+  "蹑": "n",
+  "蹒": "p",
+  "蹊": "q",
+  "蟥": "h",
+  "螬": "c",
+  "螵": "p",
+  "疃": "t",
+  "螳": "t",
+  "蟑": "z",
+  "嚓": "c",
+  "羁": "j",
+  "罽": "j",
+  "罾": "z",
+  "嶷": "y",
+  "黜": "c",
+  "黝": "y",
+  "髁": "k",
+  "髀": "b",
+  "镡": "t",
+  "镢": "j",
+  "镣": "l",
+  "镦": "d",
+  "镧": "l",
+  "镩": "c",
+  "镪": "q",
+  "镫": "d",
+  "罅": "x",
+  "黏": "n",
+  "簌": "s",
+  "篾": "m",
+  "篼": "d",
+  "簖": "d",
+  "簋": "g",
+  "鼢": "f",
+  "黛": "d",
+  "儡": "l",
+  "鹪": "j",
+  "鼾": "h",
+  "皤": "p",
+  "魍": "w",
+  "龠": "y",
+  "繇": "y",
+  "貘": "m",
+  "邈": "m",
+  "貔": "p",
+  "臌": "g",
+  "膻": "s",
+  "臆": "y",
+  "臃": "y",
+  "鲼": "f",
+  "鲽": "d",
+  "鳀": "t",
+  "鳃": "s",
+  "鳅": "q",
+  "鳇": "h",
+  "鳊": "b",
+  "螽": "z",
+  "燮": "x",
+  "鹫": "j",
+  "襄": "x",
+  "糜": "m",
+  "縻": "m",
+  "膺": "y",
+  "癍": "b",
+  "麋": "m",
+  "懑": "m",
+  "濡": "r",
+  "濮": "p",
+  "濞": "b",
+  "濠": "h",
+  "濯": "z",
+  "蹇": "j",
+  "謇": "j",
+  "邃": "s",
+  "襁": "q",
+  "檗": "b",
+  "擘": "b",
+  "孺": "r",
+  "隳": "h",
+  "嬷": "m",
+  "蟊": "m",
+  "鹬": "y",
+  "鍪": "m",
+  "鏊": "a",
+  "鳌": "a",
+  "鬈": "q",
+  "鬃": "z",
+  "瞽": "g",
+  "鞯": "j",
+  "鞨": "h",
+  "鞫": "j",
+  "鞧": "q",
+  "鞣": "r",
+  "藜": "l",
+  "藠": "j",
+  "藩": "f",
+  "醪": "l",
+  "蹙": "c",
+  "礓": "j",
+  "燹": "x",
+  "餮": "t",
+  "瞿": "q",
+  "曛": "x",
+  "颢": "h",
+  "曜": "y",
+  "躇": "c",
+  "蹚": "t",
+  "鹭": "l",
+  "蟛": "p",
+  "蟪": "h",
+  "蟠": "p",
+  "蟮": "s",
+  "鹮": "h",
+  "黠": "x",
+  "黟": "y",
+  "髅": "l",
+  "髂": "q",
+  "镬": "h",
+  "镭": "l",
+  "镯": "z",
+  "馥": "f",
+  "簟": "d",
+  "簪": "z",
+  "鼬": "y",
+  "雠": "c",
+  "艟": "c",
+  "鳎": "t",
+  "鳏": "g",
+  "鳐": "y",
+  "癞": "l",
+  "癔": "y",
+  "癜": "d",
+  "癖": "p",
+  "糨": "j",
+  "蹩": "b",
+  "鎏": "l",
+  "懵": "m",
+  "彝": "y",
+  "邋": "l",
+  "鬏": "j",
+  "攉": "h",
+  "攒": "z",
+  "鞲": "g",
+  "鞴": "b",
+  "藿": "h",
+  "蘧": "q",
+  "蘅": "h",
+  "麓": "l",
+  "醮": "j",
+  "醯": "x",
+  "酃": "l",
+  "霪": "y",
+  "霭": "a",
+  "霨": "w",
+  "黼": "f",
+  "嚯": "h",
+  "蹰": "c",
+  "蹶": "j",
+  "蹽": "l",
+  "蹼": "p",
+  "蹴": "c",
+  "蹾": "d",
+  "蹿": "c",
+  "蠖": "h",
+  "蠓": "m",
+  "蟾": "c",
+  "蠊": "l",
+  "黢": "q",
+  "髋": "k",
+  "髌": "b",
+  "镲": "c",
+  "籀": "z",
+  "籁": "l",
+  "齁": "h",
+  "魑": "c",
+  "艨": "m",
+  "鳓": "l",
+  "鳔": "b",
+  "鳕": "x",
+  "鳗": "m",
+  "鳙": "y",
+  "麒": "q",
+  "鏖": "a",
+  "羸": "l",
+  "㸆": "k",
+  "瀚": "h",
+  "瀣": "x",
+  "瀛": "y",
+  "襦": "r",
+  "谶": "c",
+  "襞": "b",
+  "骥": "j",
+  "缵": "z",
+  "瓒": "z",
+  "攘": "r",
+  "蘩": "f",
+  "蘖": "n",
+  "醴": "l",
+  "霰": "x",
+  "酆": "f",
+  "矍": "j",
+  "曦": "x",
+  "躅": "z",
+  "鼍": "t",
+  "巉": "c",
+  "黩": "d",
+  "黥": "q",
+  "黪": "c",
+  "镳": "b",
+  "镴": "l",
+  "黧": "l",
+  "纂": "z",
+  "璺": "w",
+  "鼯": "w",
+  "臜": "z",
+  "鳜": "j",
+  "鳝": "s",
+  "鳟": "z",
+  "獾": "h",
+  "孀": "s",
+  "骧": "x",
+  "瓘": "g",
+  "鼙": "p",
+  "醺": "x",
+  "礴": "b",
+  "颦": "p",
+  "曩": "n",
+  "鳢": "l",
+  "癫": "d",
+  "麝": "s",
+  "夔": "k",
+  "爝": "j",
+  "灏": "h",
+  "禳": "r",
+  "鐾": "b",
+  "羼": "c",
+  "蠡": "l",
+  "耱": "m",
+  "懿": "y",
+  "蘸": "z",
+  "鹳": "g",
+  "霾": "m",
+  "氍": "q",
+  "饕": "t",
+  "躐": "l",
+  "髑": "d",
+  "镵": "c",
+  "穰": "r",
+  "饔": "y",
+  "鬻": "y",
+  "鬟": "h",
+  "趱": "z",
+  "攫": "j",
+  "攥": "z",
+  "颧": "q",
+  "躜": "z",
+  "鼹": "y",
+  "癯": "q",
+  "麟": "l",
+  "蠲": "j",
+  "蠹": "d",
+  "躞": "x",
+  "衢": "q",
+  "鑫": "x",
+  "灞": "b",
+  "襻": "p",
+  "纛": "d",
+  "鬣": "l",
+  "攮": "n",
+  "囔": "n",
+  "馕": "n",
+  "戆": "g",
+  "爨": "c",
+  "齉": "n"
+};
+        // 自动生成快捷码
+        function autoGenerateCode(name) {
+            const code = pinyinFirstLetters(name);
+            document.getElementById('newProductCode').value = code;
+        }
+
+        // 拼音首字母获取函数 
+        function pinyinFirstLetters(str) {
+            let result = '';
+            for (let char of str) {
+                const letter = getFirstLetter(char);
+                if (letter) {
+                    result += letter;
+                }
+            }
+            return result;
+        }
+
+        function getFirstLetter(char) {
+            if (!char) return '';
+            if (/[a-zA-Z]/.test(char)) return char.toLowerCase();
+            return PINYIN_MAP[char] || '';
+        }
+        // 渲染商品列表
+        function renderProductList() {
+            const list = document.getElementById('productList');
+            document.getElementById('productCount').textContent = products.length;
+
+            // 获取排序选项
+            const sortBy = document.getElementById('sortBy')?.value || 'name';
+            const sortOrder = document.getElementById('sortOrder')?.value || 'asc';
+
+            // 复制数组进行排序（不修改原数组）
+            let sortedProducts = [...products];
+
+            // 根据选项排序
+            sortedProducts.sort((a, b) => {
+                let comparison = 0;
+                if (sortBy === 'name') {
+                    // 按名称首字母排序（支持中文）
+                    comparison = a.name.localeCompare(b.name, 'zh-CN');
+                } else if (sortBy === 'price') {
+                    // 按价格排序
+                    comparison = a.price - b.price;
+                }
+                // 根据升序/降序调整
+                return sortOrder === 'asc' ? comparison : -comparison;
+            });
+
+            list.innerHTML = sortedProducts.map(p => `
+                <div class="product-item">
+                    <div class="product-info">
+                        <h4>${p.name}</h4>
+                        <p>快捷码: ${p.code}</p>
+                        ${p.barcode ? `<span class="barcode">📷 ${p.barcode}</span>` : ''}
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="product-price">¥${p.price.toFixed(2)}</div>
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; margin-top: 5px;" onclick="deleteProduct(${p.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 删除商品
+        async function deleteProduct(id) {
+            if (confirm('确定删除这个商品吗？')) {
+                products = products.filter(p => p.id !== id);
+                await saveProducts();
+                renderProductList();
+            }
+        }
+
+        // 搜索商品 - 支持模糊查询和下拉选择
+        function searchProducts(keyword) {
+            const dropdown = document.getElementById('searchDropdown');
+
+            if (!keyword || keyword.trim() === '') {
+                searchResults = [];
+                selectedIndex = -1;
+                dropdown.classList.remove('active');
+                return;
+            }
+
+            keyword = keyword.toLowerCase().trim();
+
+            // 模糊匹配：名称包含关键字 或 快捷码包含关键字 或 条形码匹配
+            searchResults = products.filter(p => {
+                const nameMatch = p.name.toLowerCase().includes(keyword);
+                const codeMatch = p.code.toLowerCase().includes(keyword);
+                const barcodeMatch = p.barcode && p.barcode.includes(keyword);
+                return nameMatch || codeMatch || barcodeMatch;
+            });
+
+            // 渲染下拉框
+            renderSearchDropdown();
+        }
+
+        // 渲染搜索下拉框
+        function renderSearchDropdown() {
+            const dropdown = document.getElementById('searchDropdown');
+
+            if (searchResults.length === 0) {
+                dropdown.innerHTML = '<div class="no-results">未找到匹配的商品</div>';
+                dropdown.classList.add('active');
+                selectedIndex = -1;
+                return;
+            }
+
+            selectedIndex = 0; // 默认选中第一个
+
+            dropdown.innerHTML = searchResults.map((p, index) => `
+                <div class="search-item ${index === 0 ? 'selected' : ''}" 
+                     onclick="selectAndAddProduct(${index})"
+                     data-index="${index}">
+                    <div class="search-item-info">
+                        <div class="search-item-name">${p.name}</div>
+                        <div class="search-item-code">快捷码: ${p.code}</div>
+                        ${p.barcode ? `<div class="search-item-barcode">📷 ${p.barcode}</div>` : ''}
+                    </div>
+                    <div class="search-item-price">¥${p.price.toFixed(2)}</div>
+                </div>
+            `).join('');
+
+            dropdown.classList.add('active');
+        }
+
+        // 键盘导航搜索结果
+        function navigateResults(direction) {
+            if (searchResults.length === 0) return;
+
+            selectedIndex += direction;
+            if (selectedIndex < 0) selectedIndex = searchResults.length - 1;
+            if (selectedIndex >= searchResults.length) selectedIndex = 0;
+
+            updateDropdownSelection();
+        }
+
+        // 更新下拉框选中状态
+        function updateDropdownSelection() {
+            const items = document.querySelectorAll('.search-item');
+            items.forEach((item, index) => {
+                if (index === selectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // 选择并添加商品（点击用）
+        function selectAndAddProduct(index) {
+            selectedIndex = index;
+            addToCart(searchResults[selectedIndex]);
+            clearSearch();
+        }
+
+        // 清空搜索
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchDropdown').classList.remove('active');
+            searchResults = [];
+            selectedIndex = -1;
+            document.getElementById('searchInput').focus();
+        }
+
+        // 处理搜索框键盘事件
+        function handleSearchKeydown(e) {
+            // 上下箭头导航
+            if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                navigateResults(-1);
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                navigateResults(1);
+            }
+            // 回车添加选中商品
+            else if (e.code === 'Enter') {
+                e.preventDefault();
+                if (searchResults.length > 0 && selectedIndex >= 0) {
+                    addToCart(searchResults[selectedIndex]);
+                    clearSearch();
+                }
+            }
+            // ESC关闭下拉框
+            else if (e.code === 'Escape') {
+                document.getElementById('searchDropdown').classList.remove('active');
+            }
+        }
+
+        // 高亮结果（兼容旧代码）
+        function highlightResult(index) {
+            updateDropdownSelection();
+        }
+
+        // 添加到购物车
+        function addToCart(product) {
+            const existing = cart.find(item => item.id === product.id);
+            if (existing) {
+                existing.quantity++;
+            } else {
+                cart.push({ ...product, quantity: 1 });
+            }
+            updateCart();
+        }
+
+        // 更新购物车显示
+        function updateCart() {
+            const tbody = document.getElementById('cartBody');
+            const table = document.getElementById('cartTable');
+            const emptyCart = document.getElementById('emptyCart');
+            const checkoutBtn = document.getElementById('checkoutBtn');
+
+            if (cart.length === 0) {
+                table.style.display = 'none';
+                emptyCart.style.display = 'block';
+                checkoutBtn.disabled = true;
+                document.getElementById('totalItems').textContent = '0';
+                document.getElementById('totalPrice').textContent = '0.00';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyCart.style.display = 'none';
+            checkoutBtn.disabled = false;
+
+            let totalItems = 0;
+            let totalPrice = 0;
+
+            tbody.innerHTML = cart.map(item => {
+                totalItems += item.quantity;
+                totalPrice += item.price * item.quantity;
+
+                return `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>¥${item.price.toFixed(2)}</td>
+                        <td>
+                            <div class="quantity-control">
+                                <button onclick="changeQuantity(${item.id}, -1)">-</button>
+                                <span>${item.quantity}</span>
+                                <button onclick="changeQuantity(${item.id}, 1)">+</button>
+                            </div>
+                        </td>
+                        <td>¥${(item.price * item.quantity).toFixed(2)}</td>
+                        <td><button class="btn btn-danger" style="padding: 4px 12px;" onclick="removeFromCart(${item.id})">删除</button></td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('totalItems').textContent = totalItems;
+            document.getElementById('totalPrice').textContent = totalPrice.toFixed(2);
+        }
+
+        // 修改数量
+        function changeQuantity(id, delta) {
+            const item = cart.find(i => i.id === id);
+            if (item) {
+                item.quantity += delta;
+                if (item.quantity <= 0) {
+                    removeFromCart(id);
+                } else {
+                    updateCart();
+                }
+            }
+        }
+
+        // 从购物车移除
+        function removeFromCart(id) {
+            cart = cart.filter(i => i.id !== id);
+            updateCart();
+        }
+
+        // 清空购物车
+        function clearCart() {
+            if (cart.length === 0) return;
+            if (confirm('确定清空购物车吗？')) {
+                cart = [];
+                updateCart();
+            }
+        }
+
+        // 打开结算弹窗
+        function openCheckout() {
+            document.getElementById('checkoutModal').classList.add('active');
+            document.getElementById('paymentInput').value = '';
+            document.getElementById('changeAmount').textContent = '¥0.00';
+            setTimeout(() => document.getElementById('paymentInput').focus(), 100);
+        }
+
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('checkoutModal').classList.remove('active');
+        }
+
+        // 计算找零
+        function calculateChange() {
+            const total = parseFloat(document.getElementById('totalPrice').textContent);
+            const payment = parseFloat(document.getElementById('paymentInput').value) || 0;
+            const change = payment - total;
+
+            const changeElement = document.getElementById('changeAmount');
+            if (change >= 0) {
+                changeElement.textContent = '¥' + change.toFixed(2);
+                changeElement.style.color = '#52c41a';
+            } else {
+                changeElement.textContent = '还差 ¥' + Math.abs(change).toFixed(2);
+                changeElement.style.color = '#f5222d';
+            }
+        }
+
+        // 完成交易
+        async function completeCheckout() {
+            const total = parseFloat(document.getElementById('totalPrice').textContent);
+            const payment = parseFloat(document.getElementById('paymentInput').value) || 0;
+
+            if (payment < total) {
+                alert('实收金额不足！');
+                return;
+            }
+
+            // 保存交易记录
+            const record = {
+                time: new Date().toLocaleString(),
+                items: [...cart],
+                total: total,
+                payment: payment,
+                change: payment - total
+            };
+
+            history.unshift(record);
+
+            // 保存到文件或 localStorage
+            if (useFileSystem) {
+                await saveHistoryToFile();
+            } else {
+                localStorage.setItem('history', JSON.stringify(history));
+            }
+
+            // 打印小票（模拟）
+            printReceipt(record);
+
+            // 清空购物车
+            cart = [];
+            updateCart();
+            closeModal();
+
+            alert('交易完成！找零：¥' + (payment - total).toFixed(2));
+        }
+
+        // 打印小票（控制台输出）
+        function printReceipt(record) {
+            console.log('========== 购物小票 ==========');
+            console.log('时间：' + record.time);
+            console.log('---------------------------');
+            record.items.forEach(item => {
+                console.log(`${item.name} x${item.quantity}  ¥${(item.price * item.quantity).toFixed(2)}`);
+            });
+            console.log('---------------------------');
+            console.log('合计：¥' + record.total.toFixed(2));
+            console.log('实收：¥' + record.payment.toFixed(2));
+            console.log('找零：¥' + record.change.toFixed(2));
+            console.log('============================');
+            console.log('谢谢惠顾，欢迎下次光临！');
+        }
+
+        // 显示交易记录
+        function showHistory() {
+            const list = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无交易记录</p>';
+            } else {
+                list.innerHTML = history.map(h => `
+                    <div class="history-item">
+                        <div>
+                            <div>${h.time}</div>
+                            <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                ${h.items.length} 种商品，共 ${h.items.reduce((sum, i) => sum + i.quantity, 0)} 件
+                            </div>
+                        </div>
+                        <div class="history-amount">¥${h.total.toFixed(2)}</div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('historyModal').classList.add('active');
+        }
+
+        // 关闭历史记录
+        function closeHistory() {
+            document.getElementById('historyModal').classList.remove('active');
+        }
+        
+        // ========== 弹窗拖动功能 ==========
+        
+        // 为交易记录弹窗添加拖动功能
+        function initModalDrag() {
+            const modal = document.getElementById('historyModal');
+            const header = modal.querySelector('.modal-header');
+            const content = modal.querySelector('.modal-content');
+            
+            let isDragging = false;
+            let startX, startY;
+            let initialX, initialY;
+            
+            header.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                // 获取初始位置
+                const rect = content.getBoundingClientRect();
+                initialX = rect.left;
+                initialY = rect.top;
+                
+                // 设置拖动时的样式
+                content.style.position = 'fixed';
+                content.style.left = initialX + 'px';
+                content.style.top = initialY + 'px';
+                content.style.margin = '0';
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                content.style.left = (initialX + dx) + 'px';
+                content.style.top = (initialY + dy) + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+        }
+        
+        // 初始化拖动功能
+        initModalDrag();
+
+        // 清空历史记录
+        async function clearHistory() {
+            if (confirm('确定清空所有交易记录吗？')) {
+                history = [];
+                if (useFileSystem) {
+                    await saveHistoryToFile();
+                } else {
+                    localStorage.removeItem('history');
+                }
+                showHistory();
+            }
+        }
+
+        // 启动应用
+        init();
+    </script>
+</body>
+</html>
