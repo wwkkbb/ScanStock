@@ -448,8 +448,12 @@
             color: white;
             border: none;
             border-radius: 20px;
-            cursor: pointer;
+            cursor: move;
             box-shadow: 0 2px 8px rgba(114, 46, 209, 0.4);
+            user-select: none;
+            white-space: nowrap;
+            width: auto;
+            height: auto;
         }
 
         .history-list {
@@ -554,10 +558,14 @@
         }
 
         .data-toggle {
-            cursor: pointer;
+            cursor: move;
             padding: 2px 6px;
             border-radius: 4px;
             transition: background 0.2s;
+            user-select: none;
+            display: inline-block;
+            width: fit-content;
+            height: fit-content;
         }
 
         .data-toggle:hover {
@@ -886,7 +894,7 @@
 
     <!-- 数据管理面板 - 最小化设计 -->
     <div class="data-manager collapsed" id="dataManager" style="display: none;">
-        <div class="data-toggle" onclick="toggleDataManager()" title="点击展开/折叠">💾</div>
+        <div class="data-toggle" id="dataToggle" onclick="toggleDataManager()" title="点击展开/折叠">💾</div>
         <div class="data-status" id="dataStatus">未连接</div>
         <div class="data-actions">
             <button onclick="selectDataFolder()" title="更换数据文件夹">📂</button>
@@ -1008,6 +1016,10 @@
         <div class="modal-content">
             <div class="modal-header">💰 收款结算</div>
             <div class="payment-input">
+                <label>客户名字（可选）</label>
+                <input type="text" id="customerNameInput" placeholder="请输入客户姓名">
+            </div>
+            <div class="payment-input">
                 <label>实收金额（元）</label>
                 <input type="number" id="paymentInput" step="0.01" placeholder="0.00" oninput="calculateChange()">
             </div>
@@ -1025,13 +1037,26 @@
     <!-- 交易记录弹窗 -->
     <div class="modal" id="historyModal">
         <div class="modal-content" style="min-width: 500px;">
-            <div class="modal-header" style="cursor: move; user-select: none;">📋 今日交易记录</div>
+            <div class="modal-header" id="historyModalHeader" style="cursor: move; user-select: none; padding: 10px; margin: -10px -10px 20px -10px; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, #722ed1 0%, #9b4bdb 100%); color: white;">📋 今日交易记录（可拖动）</div>
             <div class="history-list" id="historyList">
                 <!-- 历史记录 -->
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeHistory()" style="background: #f0f0f0;">关闭</button>
                 <button class="btn btn-danger" onclick="clearHistory()">清空记录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交易详情弹窗 -->
+    <div class="modal" id="historyDetailModal">
+        <div class="modal-content" style="min-width: 600px;">
+            <div class="modal-header">📄 交易详情</div>
+            <div id="historyDetailContent">
+                <!-- 交易详情内容 -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeHistoryDetail()" style="background: #f0f0f0;">关闭</button>
             </div>
         </div>
     </div>
@@ -1083,15 +1108,7 @@
         </div>
     </div>
 
-    <button class="history-btn" onclick="showHistory()">📋 交易记录</button>
-
-    <div class="shortcuts">
-        <strong>快捷键：</strong><br>
-        Space - 结算<br>
-        ↑↓ - 选择商品<br>
-        Enter - 确认添加<br>
-        ESC - 关闭弹窗/下拉框
-    </div>
+    <button class="history-btn" id="historyBtn" onclick="showHistory()">📋 交易记录</button>
 
     <script>
         // 数据存储
@@ -8597,6 +8614,7 @@
         async function completeCheckout() {
             const total = parseFloat(document.getElementById('totalPrice').textContent);
             const payment = parseFloat(document.getElementById('paymentInput').value) || 0;
+            const customerName = document.getElementById('customerNameInput').value || '';
 
             if (payment < total) {
                 alert('实收金额不足！');
@@ -8609,7 +8627,8 @@
                 items: [...cart],
                 total: total,
                 payment: payment,
-                change: payment - total
+                change: payment - total,
+                customerName: customerName
             };
 
             history.unshift(record);
@@ -8629,7 +8648,8 @@
             updateCart();
             closeModal();
 
-            alert('交易完成！找零：¥' + (payment - total).toFixed(2));
+            const customerInfo = customerName ? `（${customerName}）` : '';
+            alert('交易完成！找零：¥' + (payment - total).toFixed(2) + customerInfo);
         }
 
         // 打印小票（控制台输出）
@@ -8655,8 +8675,8 @@
             if (history.length === 0) {
                 list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无交易记录</p>';
             } else {
-                list.innerHTML = history.map(h => `
-                    <div class="history-item">
+                list.innerHTML = history.map((h, index) => `
+                    <div class="history-item" onclick="showHistoryDetail(${index})" style="cursor: pointer;">
                         <div>
                             <div>${h.time}</div>
                             <div style="font-size: 12px; color: #666; margin-top: 4px;">
@@ -8671,59 +8691,297 @@
             document.getElementById('historyModal').classList.add('active');
         }
 
+        // 显示交易详情
+        function showHistoryDetail(index) {
+            const record = history[index];
+            if (!record) return;
+            
+            const content = document.getElementById('historyDetailContent');
+            
+            // 生成商品列表 HTML
+            const itemsHtml = record.items.map(item => `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500;">${item.name}</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 2px;">单价：¥${item.price.toFixed(2)}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 14px;">× ${item.quantity}</div>
+                        <div style="font-weight: bold; color: #f5222d; margin-top: 4px;">¥${(item.price * item.quantity).toFixed(2)}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            content.innerHTML = `
+                <div style="padding: 20px 0;">
+                    <div style="margin-bottom: 20px;">
+                        <div style="color: #999; font-size: 14px;">交易时间</div>
+                        <div style="font-size: 16px; margin-top: 5px;">${record.time}</div>
+                    </div>
+                    
+                    ${record.customerName ? `
+                    <div style="margin-bottom: 20px; padding: 15px; background: #fff7e6; border-radius: 6px;">
+                        <div style="color: #fa8c16; font-size: 14px; margin-bottom: 5px;">👤 客户姓名</div>
+                        <div style="font-size: 18px; font-weight: 500;">${record.customerName}</div>
+                    </div>
+                    ` : ''}
+                    
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 6px;">
+                        <div style="color: #666; font-size: 14px; margin-bottom: 10px;">商品明细</div>
+                        ${itemsHtml}
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #e6f7ff; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="font-size: 16px; font-weight: 500;">合计金额</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #f5222d;">¥${record.total.toFixed(2)}</div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f6ffed; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="font-size: 16px; font-weight: 500;">实收金额</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #52c41a;">¥${record.payment.toFixed(2)}</div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #fff7e6; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 500;">找零金额</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #fa8c16;">¥${record.change.toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('historyDetailModal').classList.add('active');
+        }
+
+        // 关闭交易详情
+        function closeHistoryDetail() {
+            document.getElementById('historyDetailModal').classList.remove('active');
+        }
+
         // 关闭历史记录
         function closeHistory() {
             document.getElementById('historyModal').classList.remove('active');
         }
         
+        // ========== 可拖动元素功能 ==========
+        
+        let elementDragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            initialLeft: 0,
+            initialTop: 0,
+            draggedElement: null
+        };
+        
+        // 初始化可拖动元素
+        function initDraggableElements() {
+            // 交易记录按钮拖动
+            const historyBtn = document.getElementById('historyBtn');
+            if (historyBtn) {
+                initElementDrag(historyBtn, 'button');
+            }
+            
+            // 数据管理展开/折叠按钮拖动
+            const dataToggle = document.getElementById('dataToggle');
+            if (dataToggle) {
+                initElementDrag(dataToggle, 'button');
+            }
+            
+            console.log('可拖动元素初始化完成');
+        }
+        
+        // 通用元素拖动初始化函数
+        function initElementDrag(element, type) {
+            element.addEventListener('mousedown', function(e) {
+                // 如果是右键点击，不触发拖动
+                if (e.button !== 0) return;
+                
+                // 阻止默认行为，防止文本选择等
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // 重置状态，确保不会继承之前的相关面板
+                elementDragState.isDragging = false;
+                elementDragState.draggedElement = null;
+                elementDragState.relatedPanel = null;
+                
+                elementDragState.isDragging = true;
+                elementDragState.draggedElement = element;
+                elementDragState.startX = e.clientX;
+                elementDragState.startY = e.clientY;
+                
+                // 获取当前元素的位置（使用 getBoundingClientRect 确保准确）
+                const rect = element.getBoundingClientRect();
+                elementDragState.initialLeft = rect.left;
+                elementDragState.initialTop = rect.top;
+                
+                // 保存元素原有的尺寸和样式
+                elementDragState.originalWidth = element.offsetWidth;
+                elementDragState.originalHeight = element.offsetHeight;
+                
+                // 只有数据管理按钮才关联面板
+                if (element.id === 'dataToggle') {
+                    const dataManager = document.getElementById('dataManager');
+                    if (dataManager) {
+                        elementDragState.relatedPanel = dataManager;
+                        const panelRect = dataManager.getBoundingClientRect();
+                        elementDragState.panelOffsetX = panelRect.left - rect.left;
+                        elementDragState.panelOffsetY = panelRect.top - rect.top;
+                        
+                        // 保存面板的原始尺寸
+                        elementDragState.panelOriginalWidth = dataManager.offsetWidth;
+                        elementDragState.panelOriginalHeight = dataManager.offsetHeight;
+                    }
+                }
+                
+                // 设置元素为 fixed 定位以便拖动
+                element.style.position = 'fixed';
+                element.style.left = elementDragState.initialLeft + 'px';
+                element.style.top = elementDragState.initialTop + 'px';
+                element.style.margin = '0';
+                element.style.zIndex = '1000';
+                
+                // 如果有相关面板，也设置为 fixed 并保持原有尺寸
+                if (elementDragState.relatedPanel) {
+                    elementDragState.relatedPanel.style.position = 'fixed';
+                    elementDragState.relatedPanel.style.left = (elementDragState.initialLeft + elementDragState.panelOffsetX) + 'px';
+                    elementDragState.relatedPanel.style.top = (elementDragState.initialTop + elementDragState.panelOffsetY) + 'px';
+                    elementDragState.relatedPanel.style.margin = '0';
+                    elementDragState.relatedPanel.style.zIndex = '999';
+                    
+                    // 保持面板原有尺寸不变
+                    elementDragState.relatedPanel.style.width = elementDragState.panelOriginalWidth + 'px';
+                    elementDragState.relatedPanel.style.height = elementDragState.panelOriginalHeight + 'px';
+                }
+                
+                // 保持原有尺寸不变
+                if (type === 'button') {
+                    element.style.width = elementDragState.originalWidth + 'px';
+                    element.style.height = elementDragState.originalHeight + 'px';
+                }
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!elementDragState.isDragging || !elementDragState.draggedElement) return;
+                
+                const dx = e.clientX - elementDragState.startX;
+                const dy = e.clientY - elementDragState.startY;
+                
+                const newLeft = elementDragState.initialLeft + dx;
+                const newTop = elementDragState.initialTop + dy;
+                
+                elementDragState.draggedElement.style.left = newLeft + 'px';
+                elementDragState.draggedElement.style.top = newTop + 'px';
+                
+                // 如果有相关面板，同步移动
+                if (elementDragState.relatedPanel) {
+                    elementDragState.relatedPanel.style.left = (newLeft + elementDragState.panelOffsetX) + 'px';
+                    elementDragState.relatedPanel.style.top = (newTop + elementDragState.panelOffsetY) + 'px';
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (elementDragState.isDragging) {
+                    console.log('结束拖动:', elementDragState.draggedElement);
+                }
+                elementDragState.isDragging = false;
+                elementDragState.draggedElement = null;
+                elementDragState.relatedPanel = null; // 清除相关面板引用
+            });
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDraggableElements);
+        } else {
+            setTimeout(initDraggableElements, 100);
+        }
+        
         // ========== 弹窗拖动功能 ==========
+        
+        let dragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            initialLeft: 0,
+            initialTop: 0
+        };
         
         // 为交易记录弹窗添加拖动功能
         function initModalDrag() {
             const modal = document.getElementById('historyModal');
-            const header = modal.querySelector('.modal-header');
+            if (!modal) {
+                console.log('未找到 historyModal');
+                return;
+            }
+            
+            const header = document.getElementById('historyModalHeader') || modal.querySelector('.modal-header');
             const content = modal.querySelector('.modal-content');
             
-            let isDragging = false;
-            let startX, startY;
-            let initialX, initialY;
+            if (!header || !content) {
+                console.log('未找到 header 或 content');
+                return;
+            }
             
+            console.log('初始化弹窗拖动功能...');
+            
+            // 鼠标按下时开始拖动
             header.addEventListener('mousedown', function(e) {
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
+                console.log('开始拖动');
+                dragState.isDragging = true;
+                dragState.startX = e.clientX;
+                dragState.startY = e.clientY;
                 
-                // 获取初始位置
+                // 获取当前内容的位置
                 const rect = content.getBoundingClientRect();
-                initialX = rect.left;
-                initialY = rect.top;
                 
-                // 设置拖动时的样式
+                // 计算相对于视口的位置
+                dragState.initialLeft = rect.left;
+                dragState.initialTop = rect.top;
+                
+                // 设置样式以支持拖动
                 content.style.position = 'fixed';
-                content.style.left = initialX + 'px';
-                content.style.top = initialY + 'px';
+                content.style.left = dragState.initialLeft + 'px';
+                content.style.top = dragState.initialTop + 'px';
                 content.style.margin = '0';
+                content.style.transform = 'none';
+                content.style.zIndex = '1001';
                 
+                // 阻止默认行为
                 e.preventDefault();
+                e.stopPropagation();
             });
             
+            // 鼠标移动时更新位置
             document.addEventListener('mousemove', function(e) {
-                if (!isDragging) return;
+                if (!dragState.isDragging) return;
                 
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
+                const dx = e.clientX - dragState.startX;
+                const dy = e.clientY - dragState.startY;
                 
-                content.style.left = (initialX + dx) + 'px';
-                content.style.top = (initialY + dy) + 'px';
+                const newLeft = dragState.initialLeft + dx;
+                const newTop = dragState.initialTop + dy;
+                
+                content.style.left = newLeft + 'px';
+                content.style.top = newTop + 'px';
             });
             
+            // 鼠标释放时结束拖动
             document.addEventListener('mouseup', function() {
-                isDragging = false;
+                if (dragState.isDragging) {
+                    console.log('结束拖动');
+                }
+                dragState.isDragging = false;
             });
+            
+            console.log('弹窗拖动功能初始化完成');
         }
         
-        // 初始化拖动功能
-        initModalDrag();
+        // 页面加载完成后初始化拖动功能
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initModalDrag);
+        } else {
+            setTimeout(initModalDrag, 100); // 延迟执行确保 DOM 已完全渲染
+        }
 
         // 清空历史记录
         async function clearHistory() {
