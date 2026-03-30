@@ -735,8 +735,9 @@
         /* 扫描提示 */
         .scan-toast {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 76px;
+            left: 20px;
+            max-width: min(320px, calc(100vw - 40px));
             background: #52c41a;
             color: white;
             padding: 15px 25px;
@@ -757,7 +758,7 @@
 
         @keyframes slideIn {
             from {
-                transform: translateX(100%);
+                transform: translateX(-100%);
                 opacity: 0;
             }
             to {
@@ -1278,7 +1279,11 @@
                     </div>
                     <div class="form-group">
                         <label>商品图片（可选）</label>
-                        <input type="file" id="newProductPhoto" accept="image/*" onchange="previewProductPhoto(this)">
+                        <input type="file" id="newProductPhoto" accept="image/*" onchange="previewProductPhoto(this)" style="display: none;">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn" type="button" onclick="chooseAndPreviewProductPhoto('camera')" style="background: #fff7e6; color: #d48806; border: 1px solid #ffd591;">拍照</button>
+                            <button class="btn" type="button" onclick="chooseAndPreviewProductPhoto('file')" style="background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f;">选择图片</button>
+                        </div>
                         <div id="photoPreview" style="display: none; margin-top: 8px;">
                             <img alt="商品图片预览" style="max-width: 100px; max-height: 100px; border-radius: 6px; border: 1px solid #d9d9d9;">
                         </div>
@@ -1404,7 +1409,7 @@
     <div class="modal scanner-modal" id="scannerModal">
         <div class="modal-content">
             <div class="modal-header">📷 扫描条形码</div>
-            <select class="camera-select" id="cameraSelect" onchange="switchCamera()">
+            <select class="camera-select" id="cameraSelect" onchange="switchCamera()" style="display: none;">
                 <option value="">选择摄像头...</option>
             </select>
             <div class="scanner-container">
@@ -1420,7 +1425,6 @@
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="fullyCloseScannerModal()" style="background: #f0f0f0;">关闭</button>
-                <button id="continuousScanBtn" class="btn" onclick="toggleContinuousScanMode()" style="background: #f6ffed; color: #52c41a; border: 1px solid #52c41a;">连续扫描</button>
                 <button class="btn btn-primary" onclick="manualEnterBarcode()">⌨️ 手动输入</button>
             </div>
         </div>
@@ -1490,8 +1494,8 @@
         let currentCamera = null;
         let cameraPermissionGranted = false; // 相机权限是否已获取
         let cachedCameraList = []; // 缓存的摄像头列表
-        let isContinuousScanMode = false; // 连续扫描模式
         let deviceProfile = null;
+        let isHandlingDetectedBarcode = false;
 
         // 文件系统相关
         let directoryHandle = null;
@@ -1504,6 +1508,14 @@
         let scannerRestartTimer = null;
         let scannerLayoutReady = false;
         let scannerMode = 'cart';
+        let shouldResumeScannerOnForeground = false;
+        let scannerSuspendedByVisibility = false;
+        let scannerBackgroundReleaseTimer = null;
+        let scannerSessionToken = 0;
+        let scannerVideoStream = null;
+        let scannerAudioContext = null;
+        let scannerRecognitionEnabled = false;
+        const SCANNER_BACKGROUND_RELEASE_DELAY = 2000;
 
         function normalizeProduct(product) {
             return {
@@ -1564,15 +1576,15 @@
 
         function scheduleScannerRestart() {
             const modal = document.getElementById('scannerModal');
-            if (!modal?.classList.contains('active')) return;
+            if (!modal?.classList.contains('active') || document.hidden) return;
 
             clearTimeout(scannerRestartTimer);
             scannerRestartTimer = setTimeout(() => {
                 const cameraId = document.getElementById('cameraSelect')?.value;
+                const sessionToken = scannerSessionToken;
                 scannerLayoutReady = true;
-                stopScanner();
                 requestAnimationFrame(() => {
-                    startScanner(cameraId);
+                    startScanner(cameraId, sessionToken);
                 });
             }, 250);
         }
@@ -1580,6 +1592,108 @@
         function handleViewportLayoutChange() {
             updateAppHeight();
             scheduleScannerRestart();
+        }
+
+        function isScannerModalActive() {
+            return document.getElementById('scannerModal')?.classList.contains('active');
+        }
+
+        function suspendScannerForBackground() {
+            // 关闭扫码弹窗或切后台时不主动释放相机，避免重复申请权限
+            clearTimeout(scannerRestartTimer);
+            clearTimeout(scannerBackgroundReleaseTimer);
+            shouldResumeScannerOnForeground = false;
+            scannerSuspendedByVisibility = false;
+        }
+
+        function resumeScannerAfterForeground() {
+            clearTimeout(scannerBackgroundReleaseTimer);
+            if (document.hidden) return;
+            if (!shouldResumeScannerOnForeground) {
+                scannerSuspendedByVisibility = false;
+                return;
+            }
+
+            if (!isScannerModalActive()) {
+                shouldResumeScannerOnForeground = false;
+                scannerSuspendedByVisibility = false;
+                return;
+            }
+
+            shouldResumeScannerOnForeground = false;
+            scannerSuspendedByVisibility = false;
+            scannerLayoutReady = true;
+            updateScannerStatus('scanning', '正在恢复摄像头...');
+            requestAnimationFrame(() => {
+                const cameraId = document.getElementById('cameraSelect')?.value;
+                startScanner(cameraId, scannerSessionToken);
+            });
+        }
+
+        function cacheScannerVideoStream() {
+            const video = document.querySelector('#scanner-video video, .scanner-modal video');
+            const stream = video?.srcObject;
+            if (stream?.getTracks) {
+                scannerVideoStream = stream;
+            }
+        }
+
+        async function ensureScannerAudioReady() {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return null;
+
+            if (!scannerAudioContext || scannerAudioContext.state === 'closed') {
+                scannerAudioContext = new AudioContextClass();
+            }
+
+            if (scannerAudioContext.state === 'suspended') {
+                await scannerAudioContext.resume();
+            }
+
+            return scannerAudioContext;
+        }
+
+        async function forceReleaseScannerResources() {
+            try {
+                const activeTrack = Quagga?.CameraAccess?.getActiveTrack?.();
+                activeTrack?.stop?.();
+                const activeStream = Quagga?.CameraAccess?.getActiveStream?.();
+                activeStream?.getTracks?.().forEach(track => track.stop());
+                if (Quagga?.CameraAccess?.release) {
+                    await Quagga.CameraAccess.release();
+                }
+            } catch (err) {
+                console.warn('释放 Quagga 相机轨道失败:', err);
+            }
+
+            try {
+                if (scannerVideoStream?.getTracks) {
+                    scannerVideoStream.getTracks().forEach(track => track.stop());
+                }
+            } catch (err) {
+                console.warn('释放缓存摄像头视频流失败:', err);
+            }
+            scannerVideoStream = null;
+
+            const mediaElements = document.querySelectorAll('#scanner-video video, .scanner-modal video');
+            mediaElements.forEach(video => {
+                try {
+                    const stream = video.srcObject;
+                    if (stream?.getTracks) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                    video.pause();
+                    video.srcObject = null;
+                    video.removeAttribute('src');
+                } catch (err) {
+                    console.warn('释放摄像头视频流失败:', err);
+                }
+            });
+
+            const scannerTarget = document.getElementById('scanner-video');
+            if (scannerTarget) {
+                scannerTarget.innerHTML = '';
+            }
         }
 
         const PHOTO_MAX_EDGE = 1200;
@@ -1604,11 +1718,63 @@
             }
         }
 
-        function selectProductPhotoFile() {
+        function chooseAndPreviewProductPhoto(source) {
+            const input = document.getElementById('newProductPhoto');
+            if (!input) return;
+
+            input.accept = 'image/*';
+            if (source === 'camera') {
+                input.setAttribute('capture', 'environment');
+            } else {
+                input.removeAttribute('capture');
+            }
+
+            input.click();
+        }
+
+        function showProductPhotoSourcePicker() {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:4000;padding:20px;';
+                overlay.innerHTML = `
+                    <div style="background:#fff;border-radius:14px;padding:18px;width:min(320px,100%);box-shadow:0 12px 40px rgba(0,0,0,0.2);">
+                        <div style="font-size:16px;font-weight:600;color:#222;margin-bottom:14px;">选择图片来源</div>
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            <button type="button" data-source="camera" style="padding:12px 14px;border:1px solid #ffd591;border-radius:10px;background:#fff7e6;color:#d48806;font-size:14px;cursor:pointer;">拍照</button>
+                            <button type="button" data-source="file" style="padding:12px 14px;border:1px solid #b7eb8f;border-radius:10px;background:#f6ffed;color:#389e0d;font-size:14px;cursor:pointer;">选择图片</button>
+                            <button type="button" data-source="cancel" style="padding:12px 14px;border:1px solid #d9d9d9;border-radius:10px;background:#f5f5f5;color:#666;font-size:14px;cursor:pointer;">取消</button>
+                        </div>
+                    </div>
+                `;
+
+                const close = (result) => {
+                    overlay.remove();
+                    resolve(result);
+                };
+
+                overlay.addEventListener('click', (event) => {
+                    if (event.target === overlay) {
+                        close(null);
+                        return;
+                    }
+
+                    const source = event.target?.dataset?.source;
+                    if (!source) return;
+                    close(source === 'cancel' ? null : source);
+                });
+
+                document.body.appendChild(overlay);
+            });
+        }
+
+        function selectProductPhotoFile(source = 'file') {
             return new Promise((resolve) => {
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = 'image/*';
+                if (source === 'camera') {
+                    input.setAttribute('capture', 'environment');
+                }
                 input.onchange = () => resolve(input.files?.[0] || null);
                 input.click();
             });
@@ -1664,7 +1830,10 @@
             const product = products.find(p => p.id === productId);
             if (!product) return;
 
-            const file = await selectProductPhotoFile();
+            const source = await showProductPhotoSourcePicker();
+            if (!source) return;
+
+            const file = await selectProductPhotoFile(source);
             if (!file) return;
 
             try {
@@ -1726,20 +1895,29 @@
         
         // ========== 摄像头条形码扫描功能 ==========
 
-        // 初始化相机权限（只执行一次）
+        function resetScannerUiState() {
+            isHandlingDetectedBarcode = false;
+            barcodeDetectionBuffer = [];
+            lastConfirmedBarcode = null;
+            document.getElementById('scannerBarcode').textContent = '';
+            updateScannerStatus('scanning', '请将条形码对准摄像头');
+        }
+
+        // 初始化相机权限状态和设备列表，不主动触发授权弹窗
         async function initCameraPermission() {
-            if (cameraPermissionGranted) return;
-            
             try {
-                // 请求相机权限
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop()); // 立即释放流
-                cameraPermissionGranted = true;
-                
-                // 获取并缓存摄像头列表
+                if (navigator.permissions?.query) {
+                    try {
+                        const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+                        cameraPermissionGranted = permissionStatus.state === 'granted';
+                    } catch (permissionError) {
+                        console.log('浏览器不支持 camera 权限状态查询:', permissionError);
+                    }
+                }
+
                 await refreshCameraList();
             } catch (err) {
-                console.error('获取相机权限失败:', err);
+                console.error('初始化相机状态失败:', err);
             }
         }
 
@@ -1757,124 +1935,89 @@
         // 更新摄像头下拉框
         function updateCameraSelect() {
             const select = document.getElementById('cameraSelect');
-            select.innerHTML = '<option value="">选择摄像头...</option>';
-            
-            cachedCameraList.forEach((device, index) => {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `摄像头 ${index + 1}`;
-                select.appendChild(option);
-            });
-            
-            // 默认选择后置摄像头
-            const backCamera = cachedCameraList.find(d => 
-                d.label.toLowerCase().includes('back') || 
-                d.label.toLowerCase().includes('rear') ||
-                d.label.toLowerCase().includes('后置')
-            );
-            
-            if (backCamera) {
-                select.value = backCamera.deviceId;
-            } else if (cachedCameraList.length > 0) {
-                select.value = cachedCameraList[0].deviceId;
-            }
+            select.innerHTML = '<option value="environment">后置摄像头</option>';
+            select.value = 'environment';
         }
 
         // 打开扫描弹窗
         async function openScannerModal(mode = 'cart') {
             scannerMode = mode;
-            isContinuousScanMode = false; // 默认不是连续模式
-            
+            shouldResumeScannerOnForeground = false;
+            scannerSuspendedByVisibility = false;
+            scannerRecognitionEnabled = true;
+            ensureScannerAudioReady().catch(err => {
+                console.log('初始化扫码提示音失败:', err);
+            });
+             
             const modal = document.getElementById('scannerModal');
             modal.classList.add('active');
             scannerLayoutReady = false;
             updateAppHeight();
+            resetScannerUiState();
              
-            // 如果还没有权限，初始化
-            if (!cameraPermissionGranted) {
+            // 初始化权限状态和摄像头列表，但不预先请求摄像头授权
+            if (!cameraPermissionGranted || cachedCameraList.length === 0) {
                 await initCameraPermission();
-            } else if (cachedCameraList.length === 0) {
-                // 已有权限，刷新列表
-                await refreshCameraList();
             } else {
-                // 使用缓存的列表
                 updateCameraSelect();
             }
-             
-            // 如果有摄像头，自动开始扫描
-            if (document.getElementById('cameraSelect').options.length > 1) {
-                requestAnimationFrame(() => {
-                    scannerLayoutReady = true;
-                    startScanner();
-                });
+
+            if (isScanning) {
+                scannerLayoutReady = true;
+                updateScannerStatus('scanning', '请将条形码对准摄像头');
+                return;
             }
+
+            scannerSessionToken += 1;
+            requestAnimationFrame(() => {
+                const sessionToken = scannerSessionToken;
+                scannerLayoutReady = true;
+                startScanner(undefined, sessionToken);
+            });
         }
 
         // 关闭扫描弹窗
         function closeScannerModal() {
-            // 如果是连续扫描模式，不关闭弹窗
-            if (isContinuousScanMode) {
-                // 重置扫描状态，但保持弹窗开启
-                barcodeDetectionBuffer = [];
-                lastConfirmedBarcode = null;
-                document.getElementById('scannerBarcode').textContent = '';
-                updateScannerStatus('scanning', '请对准条形码...');
-                return;
-            }
-            
             const modal = document.getElementById('scannerModal');
-            modal.classList.remove('active');
             clearTimeout(scannerRestartTimer);
+            clearTimeout(scannerBackgroundReleaseTimer);
             scannerLayoutReady = false;
             scannerMode = 'cart';
-            stopScanner();
-        }
-
-        // 切换连续扫描模式
-        function toggleContinuousScanMode() {
-            isContinuousScanMode = !isContinuousScanMode;
-            const btn = document.getElementById('continuousScanBtn');
-            if (isContinuousScanMode) {
-                btn.textContent = '停止连续扫描';
-                btn.classList.add('btn-success');
-                showScanToast('已开启连续扫描模式', false);
-            } else {
-                btn.textContent = '连续扫描';
-                btn.classList.remove('btn-success');
-                showScanToast('已关闭连续扫描模式', false);
-            }
+            scannerRecognitionEnabled = false;
+            shouldResumeScannerOnForeground = false;
+            scannerSuspendedByVisibility = false;
+            modal.classList.remove('active');
+            resetScannerUiState();
         }
 
         // 完全关闭扫描弹窗（用于连续模式下的关闭按钮）
         function fullyCloseScannerModal() {
-            isContinuousScanMode = false;
             const modal = document.getElementById('scannerModal');
-            modal.classList.remove('active');
             clearTimeout(scannerRestartTimer);
+            clearTimeout(scannerBackgroundReleaseTimer);
             scannerLayoutReady = false;
             scannerMode = 'cart';
-            stopScanner();
+            scannerRecognitionEnabled = false;
+            shouldResumeScannerOnForeground = false;
+            scannerSuspendedByVisibility = false;
+            modal.classList.remove('active');
+            resetScannerUiState();
         }
 
 
 
         // 切换摄像头
         function switchCamera() {
-            stopScanner();
-            const cameraId = document.getElementById('cameraSelect').value;
-            if (cameraId) {
-                startScanner(cameraId);
-            }
+            // 固定使用后置摄像头，保留空函数避免旧事件报错
         }
 
         // 开始扫描
-        function startScanner(cameraId) {
-            if (isScanning || !scannerLayoutReady) return;
+        function startScanner(cameraId, sessionToken = scannerSessionToken) {
+            if (sessionToken !== scannerSessionToken || isScanning || !scannerLayoutReady || document.hidden || !isScannerModalActive()) return;
              
-            const selectedCamera = cameraId || document.getElementById('cameraSelect').value;
             const scannerTarget = document.querySelector('#scanner-video');
             if (!scannerTarget || scannerTarget.clientWidth === 0 || scannerTarget.clientHeight === 0) {
-                requestAnimationFrame(() => startScanner(cameraId));
+                requestAnimationFrame(() => startScanner(cameraId, sessionToken));
                 return;
             }
              
@@ -1888,8 +2031,7 @@
                     constraints: {
                         width: { min: 640, ideal: 1280, max: 1920 },
                         height: { min: 480, ideal: 720, max: 1080 },
-                        deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
-                        facingMode: selectedCamera ? undefined : "environment"
+                        facingMode: { ideal: "environment" }
                     },
                 },
                 locator: {
@@ -1913,15 +2055,30 @@
                 },
                 locate: true
             }, function(err) {
+                if (sessionToken !== scannerSessionToken || !isScannerModalActive()) {
+                    try {
+                        Quagga.stop();
+                    } catch (stopErr) {
+                        console.warn('扫码器过期实例停止失败:', stopErr);
+                    }
+                    forceReleaseScannerResources();
+                    return;
+                }
+
                 if (err) {
                     console.error('Quagga 初始化失败:', err);
                     updateScannerStatus('error', '摄像头启动失败: ' + err.message);
+                    forceReleaseScannerResources();
                     return;
                 }
                 
                 isScanning = true;
+                cameraPermissionGranted = true;
                 Quagga.start();
+                requestAnimationFrame(cacheScannerVideoStream);
+                setTimeout(cacheScannerVideoStream, 120);
                 updateScannerStatus('scanning', '请将条形码对准摄像头');
+                refreshCameraList();
                 
                 // 监听扫描结果
                 Quagga.onDetected(onBarcodeDetected);
@@ -1929,14 +2086,22 @@
         }
 
         // 停止扫描
-        function stopScanner() {
+        async function stopScanner() {
             try {
                 Quagga.offDetected(onBarcodeDetected);
                 Quagga.stop();
             } catch (err) {
                 console.warn('停止扫码器失败:', err);
             }
+            await forceReleaseScannerResources();
             isScanning = false;
+        }
+
+        function stopScannerOnPageExit() {
+            if (!isScanning) return;
+            stopScanner().catch(err => {
+                console.warn('页面退出时释放扫码器失败:', err);
+            });
         }
 
         // 条形码识别缓冲（多次确认机制）
@@ -1987,17 +2152,16 @@
 
         // 扫描到条形码回调
         function onBarcodeDetected(result) {
+            if (!scannerRecognitionEnabled || !isScannerModalActive()) return;
+            if (isHandlingDetectedBarcode) return;
+
             const code = result.codeResult.code;
             const format = result.codeResult.format;
             const confidence = result.codeResult.confidence;
             const now = Date.now();
 
-            // 快速路径：如果是刚刚扫过的同一条码（重复扫描模式），直接通过
+            // 非连续模式下，同一码在短时间内直接忽略，避免一次扫码重复入车
             if (code === lastConfirmedBarcode && (now - lastDetectedTime) < 5000) {
-                // 更新时间戳防止连续触发
-                lastDetectedTime = now;
-                console.log('快速确认重复条码:', code);
-                handleConfirmedBarcode(code, format, true);
                 return;
             }
 
@@ -2048,21 +2212,17 @@
             lastConfirmedBarcode = confirmedCode;
             lastDetectedBarcode = confirmedCode;
             lastDetectedTime = now;
+            isHandlingDetectedBarcode = true;
 
             handleConfirmedBarcode(confirmedCode, format, false);
         }
 
         // 处理已确认的条形码
         function handleConfirmedBarcode(code, format, isQuick) {
-            console.log('确认条形码:', code, '格式:', format, isQuick ? '(快速)' : '', isContinuousScanMode ? '(连续模式)' : '');
+            console.log('确认条形码:', code, '格式:', format, isQuick ? '(快速)' : '');
 
             document.getElementById('scannerBarcode').textContent = code;
-            
-            if (isContinuousScanMode) {
-                updateScannerStatus('success', `已添加: ${code}`);
-            } else {
-                updateScannerStatus('success', isQuick ? '已识别' : '已确认');
-            }
+            updateScannerStatus('success', isQuick ? '已识别' : '已确认');
 
             playBeepSound();
 
@@ -2073,31 +2233,44 @@
                 processBarcode(code);
             }
 
-            // 延迟关闭或重置
-            const delay = isQuick ? 300 : (isContinuousScanMode ? 500 : 500);
+            if (scannerMode === 'product') {
+                setTimeout(() => {
+                    closeScannerModal();
+                }, isQuick ? 300 : 500);
+                return;
+            }
+
+            // 购物车扫码后保留弹窗，短暂停留后恢复扫描状态
+            const delay = isQuick ? 300 : 500;
             setTimeout(() => {
-                closeScannerModal();
+                barcodeDetectionBuffer = [];
+                isHandlingDetectedBarcode = false;
+                document.getElementById('scannerBarcode').textContent = '';
+                updateScannerStatus('scanning', '请将条形码对准摄像头');
             }, delay);
         }
 
         // 播放扫描成功提示音
-        function playBeepSound() {
+        async function playBeepSound() {
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioContext = await ensureScannerAudioReady();
+                if (!audioContext) return;
+
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 
                 oscillator.connect(gainNode);
                 gainNode.connect(audioContext.destination);
                 
-                oscillator.frequency.value = 1000;
+                oscillator.frequency.setValueAtTime(1046.5, audioContext.currentTime);
                 oscillator.type = 'sine';
                 
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.22, audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.12);
                 
                 oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.1);
+                oscillator.stop(audioContext.currentTime + 0.12);
             } catch (err) {
                 console.log('播放提示音失败:', err);
             }
@@ -2130,21 +2303,14 @@
 
                 if (currentMode === 'product') {
                     fillNewProductBarcode(trimmedCode);
-                    // 非连续模式下关闭弹窗
-                    if (!isContinuousScanMode) {
-                        closeScannerModal();
-                    }
+                    closeScannerModal();
                 } else {
                     processBarcode(trimmedCode);
-                    // 连续模式下重置状态继续扫描
-                    if (isContinuousScanMode) {
-                        barcodeDetectionBuffer = [];
-                        lastConfirmedBarcode = null;
-                        document.getElementById('scannerBarcode').textContent = trimmedCode;
-                        updateScannerStatus('success', `已添加: ${trimmedCode}`);
-                    } else {
-                        closeScannerModal();
-                    }
+                    barcodeDetectionBuffer = [];
+                    lastConfirmedBarcode = null;
+                    isHandlingDetectedBarcode = false;
+                    document.getElementById('scannerBarcode').textContent = trimmedCode;
+                    updateScannerStatus('success', `已添加: ${trimmedCode}`);
                 }
             }
         }
@@ -2538,13 +2704,14 @@
         const MAX_AUTO_BACKUPS = 10; // 最多保留的自动备份数量
         let backupSequence = 0;
         const APP_DB_NAME = 'cashierDB';
-        const APP_DB_VERSION = 2;
+        const APP_DB_VERSION = 3;
         const APP_DB_STORES = {
             products: 'products',
             history: 'history',
             backups: 'backups',
             meta: 'meta',
-            images: 'images'
+            images: 'images',
+            cart: 'cart'
         };
         let appDbPromise = null;
         
@@ -2626,6 +2793,21 @@
 
         async function dbSaveAllHistory(items) {
             await idbPutRecord(APP_DB_STORES.history, { key: 'current', items });
+        }
+
+        async function dbLoadCart() {
+            const record = await idbGetRecord(APP_DB_STORES.cart, 'current');
+            return Array.isArray(record?.items) ? record.items : [];
+        }
+
+        async function dbSaveCart(items) {
+            await idbPutRecord(APP_DB_STORES.cart, { key: 'current', items });
+        }
+
+        function persistCartState() {
+            dbSaveCart(cart).catch((err) => {
+                console.error('保存购物车失败:', err);
+            });
         }
 
         async function dbGetAllBackups() {
@@ -3362,6 +3544,7 @@
             await migrateImageReferencesInIndexedDB();
             products = await dbLoadProducts();
             history = await dbLoadHistory();
+            cart = await dbLoadCart();
 
             // 初始化备份记录（首次使用）
             if (!await dbGetBackupBaseline()) {
@@ -3447,6 +3630,9 @@
                     handleBarcodeScan(e);
                 }
             });
+
+            window.addEventListener('pagehide', stopScannerOnPageExit);
+            window.addEventListener('beforeunload', stopScannerOnPageExit);
         }
 
         // 保存商品数据
@@ -10337,6 +10523,7 @@
                 checkoutBtn.disabled = true;
                 document.getElementById('totalItems').textContent = '0';
                 document.getElementById('totalPrice').textContent = '0.00';
+                persistCartState();
                 return;
             }
 
@@ -10370,6 +10557,7 @@
 
             document.getElementById('totalItems').textContent = totalItems;
             document.getElementById('totalPrice').textContent = totalPrice.toFixed(2);
+            persistCartState();
         }
 
         // 修改数量
