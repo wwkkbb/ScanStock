@@ -1121,26 +1121,96 @@
         <span id="scanToastText">已扫描: 6914068055244</span>
     </div>
 
-    <!-- 文件夹选择提示 -->
+    <!-- 初始化提示 -->
     <div class="folder-prompt" id="folderPrompt">
         <div class="folder-prompt-content">
-            <h2>📁 选择数据文件夹</h2>
-            <p>请选择（或创建）一个文件夹来存储商品数据和交易记录。<br>
-            系统将在该文件夹中创建 products.json 和 history.json 文件。</p>
-            <button class="btn btn-primary" onclick="selectDataFolder()" style="padding: 12px 30px; font-size: 16px; margin: 10px;">选择文件夹</button>
-            <button class="btn" onclick="useMemoryMode()" style="padding: 12px 30px; font-size: 16px; margin: 10px; background: #f0f0f0;">暂不选择</button>
+            <h2>🚀 快速开始</h2>
+            <p>系统将自动使用浏览器本地存储数据，无需任何配置。<br>
+            如需同步到其他设备，可使用导出/导入功能。</p>
+            <button class="btn btn-primary" onclick="startWithLocalStorage()" style="padding: 12px 30px; font-size: 16px; margin: 10px;">立即开始</button>
         </div>
     </div>
 
-    <!-- 数据管理面板 - 最小化设计 -->
+    <!-- 数据管理面板 - 简化版 -->
     <div class="data-manager collapsed" id="dataManager" style="display: none;">
         <div class="data-toggle" id="dataToggle" onclick="toggleDataManager()" title="点击展开/折叠">💾</div>
-        <div class="data-status" id="dataStatus">未连接</div>
+        <div class="data-status" id="dataStatus">本地存储</div>
         <div class="data-actions">
-            <button onclick="selectDataFolder()" title="更换数据文件夹">📂</button>
-            <button onclick="exportData()" title="导出备份">📥</button>
-            <button onclick="importData()" title="导入备份">📤</button>
-            <button class="primary" onclick="saveDataToFile()" title="立即保存">💾</button>
+            <button onclick="exportSimpleData()" title="导出数据给其他店员">📥 导出</button>
+            <button onclick="importSimpleData()" title="导入其他店员的数据">📤 导入</button>
+            <button onclick="openBackupModal()" title="查看自动备份">📁 备份</button>
+        </div>
+    </div>
+
+    <!-- 备份管理弹窗 -->
+    <div class="modal" id="backupModal">
+        <div class="modal-content" style="min-width: 500px; max-width: 90%;">
+            <div class="modal-header">📁 备份管理</div>
+            <p style="color: #666; margin-bottom: 15px; font-size: 13px;">
+                系统会在数据变化后自动备份（间隔15天），最多保留 10 个自动备份。<br>
+                <span style="color: #ff4d0f;">⚠️ 导入/恢复操作前会自动创建应急备份，方便错误时还原。</span>
+            </p>
+            <div class="backup-list" id="backupList" style="max-height: 400px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
+                <!-- 备份列表动态生成 -->
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn" onclick="closeBackupModal()" style="background: #f0f0f0;">关闭</button>
+                <button class="btn btn-primary" onclick="createManualBackup()">💾 立即备份</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入确认弹窗 -->
+    <div class="modal" id="importConfirmModal">
+        <div class="modal-content">
+            <div class="modal-header">📤 确认导入数据</div>
+            <div id="importInfo" style="margin: 15px 0; line-height: 1.8;">
+                <!-- 导入信息动态生成 -->
+            </div>
+            <div id="importOptions" style="margin: 15px 0; padding: 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa;">
+                <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="importProductsCheckbox" checked style="margin-right: 8px;">
+                    导入商品信息
+                    <span style="display: block; font-size: 12px; color: #666; margin-left: 22px;">覆盖当前商品资料；文件中商品为空时将自动跳过。</span>
+                </label>
+                <label style="display: block; cursor: pointer;">
+                    <input type="checkbox" id="importHistoryCheckbox" checked style="margin-right: 8px;">
+                    导入历史数据
+                    <span style="display: block; font-size: 12px; color: #666; margin-left: 22px;">按 orderId 合并去重；文件中历史为空时将自动跳过。</span>
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeImportConfirmModal()" style="background: #f0f0f0;">取消</button>
+                <button class="btn btn-primary" onclick="confirmImport()">确认导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导出选项弹窗 -->
+    <div class="modal" id="exportOptionsModal">
+        <div class="modal-content">
+            <div class="modal-header">📥 导出数据</div>
+            <div id="exportInfo" style="margin: 15px 0; line-height: 1.8;">
+                <!-- 导出信息动态生成 -->
+            </div>
+            <div style="margin: 15px 0; padding: 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa;">
+                <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                    <input type="radio" name="exportScope" value="all" checked style="margin-right: 8px;">
+                    商品信息 + 历史数据
+                </label>
+                <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                    <input type="radio" name="exportScope" value="products" style="margin-right: 8px;">
+                    仅商品信息
+                </label>
+                <label style="display: block; cursor: pointer;">
+                    <input type="radio" name="exportScope" value="history" style="margin-right: 8px;">
+                    仅历史数据
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeExportOptionsModal()" style="background: #f0f0f0;">取消</button>
+                <button class="btn btn-primary" onclick="confirmExport()">确认导出</button>
+            </div>
         </div>
     </div>
     <div class="container">
@@ -1349,7 +1419,8 @@
                 <div class="scanner-barcode" id="scannerBarcode"></div>
             </div>
             <div class="modal-actions">
-                <button class="btn" onclick="closeScannerModal()" style="background: #f0f0f0;">关闭</button>
+                <button class="btn" onclick="fullyCloseScannerModal()" style="background: #f0f0f0;">关闭</button>
+                <button id="continuousScanBtn" class="btn" onclick="toggleContinuousScanMode()" style="background: #f6ffed; color: #52c41a; border: 1px solid #52c41a;">连续扫描</button>
                 <button class="btn btn-primary" onclick="manualEnterBarcode()">⌨️ 手动输入</button>
             </div>
         </div>
@@ -1417,6 +1488,10 @@
         // 摄像头扫描相关
         let isScanning = false;
         let currentCamera = null;
+        let cameraPermissionGranted = false; // 相机权限是否已获取
+        let cachedCameraList = []; // 缓存的摄像头列表
+        let isContinuousScanMode = false; // 连续扫描模式
+        let deviceProfile = null;
 
         // 文件系统相关
         let directoryHandle = null;
@@ -1434,6 +1509,7 @@
             return {
                 ...product,
                 barcode: product?.barcode || '',
+                imageId: product?.imageId || '',
                 photo: product?.photo || ''
             };
         }
@@ -1453,6 +1529,32 @@
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        function formatDateTime(value) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        function generateDeviceId() {
+            if (window.crypto?.randomUUID) {
+                return `dev_${window.crypto.randomUUID()}`;
+            }
+
+            return `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        function generateOrderId(deviceId) {
+            return `${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         }
 
         function updateAppHeight() {
@@ -1567,6 +1669,7 @@
 
             try {
                 product.photo = await readPhotoFile(file);
+                product.imageId = '';
                 await saveProducts();
                 renderProductList();
                 showScanToast(`✅ 已更新商品图片: ${product.name}`, false);
@@ -1584,6 +1687,7 @@
             }
 
             product.photo = '';
+            product.imageId = '';
             await saveProducts();
             renderProductList();
             closePhotoModal();
@@ -1622,16 +1726,80 @@
         
         // ========== 摄像头条形码扫描功能 ==========
 
+        // 初始化相机权限（只执行一次）
+        async function initCameraPermission() {
+            if (cameraPermissionGranted) return;
+            
+            try {
+                // 请求相机权限
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop()); // 立即释放流
+                cameraPermissionGranted = true;
+                
+                // 获取并缓存摄像头列表
+                await refreshCameraList();
+            } catch (err) {
+                console.error('获取相机权限失败:', err);
+            }
+        }
+
+        // 刷新摄像头列表
+        async function refreshCameraList() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                cachedCameraList = devices.filter(d => d.kind === 'videoinput');
+                updateCameraSelect();
+            } catch (err) {
+                console.error('刷新摄像头列表失败:', err);
+            }
+        }
+
+        // 更新摄像头下拉框
+        function updateCameraSelect() {
+            const select = document.getElementById('cameraSelect');
+            select.innerHTML = '<option value="">选择摄像头...</option>';
+            
+            cachedCameraList.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `摄像头 ${index + 1}`;
+                select.appendChild(option);
+            });
+            
+            // 默认选择后置摄像头
+            const backCamera = cachedCameraList.find(d => 
+                d.label.toLowerCase().includes('back') || 
+                d.label.toLowerCase().includes('rear') ||
+                d.label.toLowerCase().includes('后置')
+            );
+            
+            if (backCamera) {
+                select.value = backCamera.deviceId;
+            } else if (cachedCameraList.length > 0) {
+                select.value = cachedCameraList[0].deviceId;
+            }
+        }
+
         // 打开扫描弹窗
         async function openScannerModal(mode = 'cart') {
             scannerMode = mode;
+            isContinuousScanMode = false; // 默认不是连续模式
+            
             const modal = document.getElementById('scannerModal');
             modal.classList.add('active');
             scannerLayoutReady = false;
             updateAppHeight();
              
-            // 获取可用摄像头列表
-            await getCameraList();
+            // 如果还没有权限，初始化
+            if (!cameraPermissionGranted) {
+                await initCameraPermission();
+            } else if (cachedCameraList.length === 0) {
+                // 已有权限，刷新列表
+                await refreshCameraList();
+            } else {
+                // 使用缓存的列表
+                updateCameraSelect();
+            }
              
             // 如果有摄像头，自动开始扫描
             if (document.getElementById('cameraSelect').options.length > 1) {
@@ -1644,6 +1812,16 @@
 
         // 关闭扫描弹窗
         function closeScannerModal() {
+            // 如果是连续扫描模式，不关闭弹窗
+            if (isContinuousScanMode) {
+                // 重置扫描状态，但保持弹窗开启
+                barcodeDetectionBuffer = [];
+                lastConfirmedBarcode = null;
+                document.getElementById('scannerBarcode').textContent = '';
+                updateScannerStatus('scanning', '请对准条形码...');
+                return;
+            }
+            
             const modal = document.getElementById('scannerModal');
             modal.classList.remove('active');
             clearTimeout(scannerRestartTimer);
@@ -1652,40 +1830,33 @@
             stopScanner();
         }
 
-        // 获取摄像头列表
-        async function getCameraList() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(d => d.kind === 'videoinput');
-                
-                const select = document.getElementById('cameraSelect');
-                select.innerHTML = '<option value="">选择摄像头...</option>';
-                
-                videoDevices.forEach((device, index) => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.text = device.label || `摄像头 ${index + 1}`;
-                    select.appendChild(option);
-                });
-                
-                // 默认选择后置摄像头（通常包含 "back" 或 "rear"）
-                const backCamera = videoDevices.find(d => 
-                    d.label.toLowerCase().includes('back') || 
-                    d.label.toLowerCase().includes('rear') ||
-                    d.label.toLowerCase().includes('后置')
-                );
-                
-                if (backCamera) {
-                    select.value = backCamera.deviceId;
-                } else if (videoDevices.length > 0) {
-                    select.value = videoDevices[0].deviceId;
-                }
-                
-            } catch (err) {
-                console.error('获取摄像头列表失败:', err);
-                updateScannerStatus('error', '无法获取摄像头列表，请检查权限设置');
+        // 切换连续扫描模式
+        function toggleContinuousScanMode() {
+            isContinuousScanMode = !isContinuousScanMode;
+            const btn = document.getElementById('continuousScanBtn');
+            if (isContinuousScanMode) {
+                btn.textContent = '停止连续扫描';
+                btn.classList.add('btn-success');
+                showScanToast('已开启连续扫描模式', false);
+            } else {
+                btn.textContent = '连续扫描';
+                btn.classList.remove('btn-success');
+                showScanToast('已关闭连续扫描模式', false);
             }
         }
+
+        // 完全关闭扫描弹窗（用于连续模式下的关闭按钮）
+        function fullyCloseScannerModal() {
+            isContinuousScanMode = false;
+            const modal = document.getElementById('scannerModal');
+            modal.classList.remove('active');
+            clearTimeout(scannerRestartTimer);
+            scannerLayoutReady = false;
+            scannerMode = 'cart';
+            stopScanner();
+        }
+
+
 
         // 切换摄像头
         function switchCamera() {
@@ -1726,19 +1897,19 @@
                     halfSample: true
                 },
                 numOfWorkers: navigator.hardwareConcurrency || 4,
-                frequency: 10,
+                frequency: 20, // 更高的扫描频率，加快识别速度
                 decoder: {
                     readers: [
-                        "code_128_reader",
-                        "ean_reader",
-                        "ean_8_reader",
-                        "code_39_reader",
-                        "code_39_vin_reader",
-                        "codabar_reader",
-                        "upc_reader",
-                        "upc_e_reader",
-                        "i2of5_reader"
-                    ]
+                        // 优先使用常见的零售条形码格式，减少误识别
+                        { format: "ean_reader", config: { 
+                            supplements: [],
+                        } },
+                        { format: "ean_8_reader", config: {} },
+                        { format: "upc_reader", config: {} },
+                        { format: "upc_e_reader", config: {} },
+                        { format: "code_128_reader", config: {} },
+                    ],
+                    multiple: false // 不识别多个条形码，减少干扰
                 },
                 locate: true
             }, function(err) {
@@ -1768,39 +1939,145 @@
             isScanning = false;
         }
 
+        // 条形码识别缓冲（多次确认机制）
+        let barcodeDetectionBuffer = [];
+        let lastConfirmedBarcode = null;
+        const BARCODE_CONFIRM_COUNT = 2; // 只需2次连续识别一致就确认
+        const BARCODE_BUFFER_TIMEOUT = 300; // 缩短缓冲时间到300ms
+
+        // EAN-13 校验位验证
+        function validateEAN13(barcode) {
+            if (barcode.length !== 13) return false;
+            let sum = 0;
+            for (let i = 0; i < 12; i++) {
+                sum += parseInt(barcode[i]) * (i % 2 === 0 ? 1 : 3);
+            }
+            const checksum = (10 - (sum % 10)) % 10;
+            return checksum === parseInt(barcode[12]);
+        }
+
+        // EAN-8 校验位验证
+        function validateEAN8(barcode) {
+            if (barcode.length !== 8) return false;
+            let sum = 0;
+            for (let i = 0; i < 7; i++) {
+                sum += parseInt(barcode[i]) * (i % 2 === 0 ? 3 : 1);
+            }
+            const checksum = (10 - (sum % 10)) % 10;
+            return checksum === parseInt(barcode[7]);
+        }
+
+        // 验证条形码格式和校验位
+        function validateBarcode(barcode) {
+            // 基本格式验证
+            if (!/^[0-9]{8,13}$/.test(barcode)) {
+                return { valid: false, reason: '格式错误' };
+            }
+
+            // 根据长度验证校验位
+            if (barcode.length === 13 && !validateEAN13(barcode)) {
+                return { valid: false, reason: 'EAN-13 校验位错误' };
+            }
+            if (barcode.length === 8 && !validateEAN8(barcode)) {
+                return { valid: false, reason: 'EAN-8 校验位错误' };
+            }
+
+            return { valid: true };
+        }
+
         // 扫描到条形码回调
         function onBarcodeDetected(result) {
             const code = result.codeResult.code;
             const format = result.codeResult.format;
-            
-            // 防抖：如果和上次扫描结果相同且间隔小于 2 秒，忽略
+            const confidence = result.codeResult.confidence;
             const now = Date.now();
-            if (code === lastDetectedBarcode && (now - lastDetectedTime) < 2000) {
+
+            // 快速路径：如果是刚刚扫过的同一条码（重复扫描模式），直接通过
+            if (code === lastConfirmedBarcode && (now - lastDetectedTime) < 5000) {
+                // 更新时间戳防止连续触发
+                lastDetectedTime = now;
+                console.log('快速确认重复条码:', code);
+                handleConfirmedBarcode(code, format, true);
                 return;
             }
-            
-            lastDetectedBarcode = code;
-            lastDetectedTime = now;
-            
-            console.log('扫描到条形码:', code, '格式:', format);
-            
-            // 显示扫描到的条形码
-            document.getElementById('scannerBarcode').textContent = code;
-            updateScannerStatus('success', `已识别 (${format})`);
-            
-            // 播放提示音
-            playBeepSound();
-            
-            // 延迟更长时间再关闭弹窗，让用户看清结果
-            setTimeout(() => {
-                const currentMode = scannerMode;
-                closeScannerModal();
-                if (currentMode === 'product') {
-                    fillNewProductBarcode(code);
-                } else {
-                    processBarcode(code);
+
+            // 过滤低置信度的识别结果（降低阈值到0.6）
+            if (confidence && confidence < 0.6) {
+                return;
+            }
+
+            // 验证条形码格式
+            const validation = validateBarcode(code);
+            if (!validation.valid) {
+                updateScannerStatus('error', `格式错误: ${validation.reason}`);
+                return;
+            }
+
+            // 清理过期的缓冲记录
+            barcodeDetectionBuffer = barcodeDetectionBuffer.filter(
+                record => now - record.time < BARCODE_BUFFER_TIMEOUT
+            );
+
+            // 添加当前识别结果到缓冲区
+            barcodeDetectionBuffer.push({ code, time: now });
+
+            // 统计缓冲区中各条形码出现次数
+            const codeCounts = {};
+            barcodeDetectionBuffer.forEach(record => {
+                codeCounts[record.code] = (codeCounts[record.code] || 0) + 1;
+            });
+
+            // 检查是否有条形码达到确认次数（2次）
+            let confirmedCode = null;
+            for (const [barcode, count] of Object.entries(codeCounts)) {
+                if (count >= BARCODE_CONFIRM_COUNT) {
+                    confirmedCode = barcode;
+                    break;
                 }
-            }, 1500);
+            }
+
+            // 如果没有达到确认次数，显示进度
+            if (!confirmedCode) {
+                const currentCount = codeCounts[code] || 0;
+                updateScannerStatus('scanning', `识别中 ${currentCount}/${BARCODE_CONFIRM_COUNT}`);
+                return;
+            }
+
+            // 确认识别成功
+            barcodeDetectionBuffer = [];
+            lastConfirmedBarcode = confirmedCode;
+            lastDetectedBarcode = confirmedCode;
+            lastDetectedTime = now;
+
+            handleConfirmedBarcode(confirmedCode, format, false);
+        }
+
+        // 处理已确认的条形码
+        function handleConfirmedBarcode(code, format, isQuick) {
+            console.log('确认条形码:', code, '格式:', format, isQuick ? '(快速)' : '', isContinuousScanMode ? '(连续模式)' : '');
+
+            document.getElementById('scannerBarcode').textContent = code;
+            
+            if (isContinuousScanMode) {
+                updateScannerStatus('success', `已添加: ${code}`);
+            } else {
+                updateScannerStatus('success', isQuick ? '已识别' : '已确认');
+            }
+
+            playBeepSound();
+
+            // 执行相应操作
+            if (scannerMode === 'product') {
+                fillNewProductBarcode(code);
+            } else {
+                processBarcode(code);
+            }
+
+            // 延迟关闭或重置
+            const delay = isQuick ? 300 : (isContinuousScanMode ? 500 : 500);
+            setTimeout(() => {
+                closeScannerModal();
+            }, delay);
         }
 
         // 播放扫描成功提示音
@@ -1839,12 +2116,35 @@
         function manualEnterBarcode() {
             const code = prompt('请输入条形码:');
             if (code && code.trim()) {
+                const trimmedCode = code.trim();
                 const currentMode = scannerMode;
-                closeScannerModal();
+
+                // 购物车模式下验证条形码格式
+                if (currentMode !== 'product') {
+                    const validation = validateBarcode(trimmedCode);
+                    if (!validation.valid) {
+                        alert('条形码验证失败: ' + validation.reason);
+                        return;
+                    }
+                }
+
                 if (currentMode === 'product') {
-                    fillNewProductBarcode(code.trim());
+                    fillNewProductBarcode(trimmedCode);
+                    // 非连续模式下关闭弹窗
+                    if (!isContinuousScanMode) {
+                        closeScannerModal();
+                    }
                 } else {
-                    processBarcode(code.trim());
+                    processBarcode(trimmedCode);
+                    // 连续模式下重置状态继续扫描
+                    if (isContinuousScanMode) {
+                        barcodeDetectionBuffer = [];
+                        lastConfirmedBarcode = null;
+                        document.getElementById('scannerBarcode').textContent = trimmedCode;
+                        updateScannerStatus('success', `已添加: ${trimmedCode}`);
+                    } else {
+                        closeScannerModal();
+                    }
                 }
             }
         }
@@ -1854,19 +2154,20 @@
         // 处理条形码（扫描枪或摄像头）
         function processBarcode(barcode) {
             console.log('处理条形码:', barcode);
-            
+
             // 清理条形码
             barcode = barcode.trim();
-            
-            // 验证条形码格式
-            if (!/^[0-9]{8,13}$/.test(barcode)) {
-                showScanToast('无效的条形码格式: ' + barcode, true);
+
+            // 验证条形码格式和校验位
+            const validation = validateBarcode(barcode);
+            if (!validation.valid) {
+                showScanToast('条形码验证失败: ' + validation.reason, true);
                 return;
             }
 
             // 查找商品
             const product = products.find(p => p.barcode === barcode);
-            
+
             if (product) {
                 // 找到商品，添加到购物车
                 addToCart(product);
@@ -2042,8 +2343,9 @@
         // 保存商品数据到文件
         async function saveDataToFile() {
             if (!useFileSystem || !dataFileHandle) {
-                console.log('未使用文件系统，保存到 localStorage');
-                localStorage.setItem('products', JSON.stringify(products));
+                console.log('未使用文件系统，保存到 IndexedDB');
+                await dbSaveAllProducts(products);
+                await checkAndDoAutoBackup();
                 return;
             }
 
@@ -2054,6 +2356,7 @@
                 await writable.close();
                 console.log('✅ 商品数据已保存到文件');
                 updateDataStatus('已保存: ' + new Date().toLocaleTimeString());
+                await checkAndDoAutoBackup();
             } catch (err) {
                 console.error('保存商品数据失败:', err);
                 alert('保存失败: ' + err.message);
@@ -2063,18 +2366,19 @@
         // 保存历史记录到文件
         async function saveHistoryToFile() {
             if (!useFileSystem || !historyFileHandle) {
-                localStorage.setItem('history', JSON.stringify(history));
-                return;
-            }
-
-            try {
-                const writable = await historyFileHandle.createWritable();
-                const dataStr = JSON.stringify(history, null, 2);
-                await writable.write(dataStr);
-                await writable.close();
-                console.log('✅ 历史记录已保存到文件');
-            } catch (err) {
-                console.error('保存历史记录失败:', err);
+                await dbSaveAllHistory(history);
+                await checkAndDoAutoBackup();
+            } else {
+                try {
+                    const writable = await historyFileHandle.createWritable();
+                    const dataStr = JSON.stringify(history, null, 2);
+                    await writable.write(dataStr);
+                    await writable.close();
+                    console.log('✅ 历史记录已保存到文件');
+                    await checkAndDoAutoBackup();
+                } catch (err) {
+                    console.error('保存历史记录失败:', err);
+                }
             }
         }
 
@@ -2085,24 +2389,89 @@
             el.classList.add('connected');
         }
 
-        // 导出备份
-        async function exportData() {
-            const backup = {
-                products: products,
-                history: history,
-                exportTime: new Date().toISOString(),
-                version: '1.2'
-            };
+        function getSelectedExportScope() {
+            return document.querySelector('input[name="exportScope"]:checked')?.value || 'all';
+        }
 
-            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        async function buildExportPayload(options = { products: true, history: true }) {
+            const profile = deviceProfile || await ensureDeviceProfile();
+            const includeProducts = Boolean(options.products);
+            const includeHistory = Boolean(options.history);
+            const exportProducts = includeProducts ? products : [];
+            const exportHistory = includeHistory ? history : [];
+
+            return {
+                products: exportProducts,
+                history: exportHistory,
+                deviceProfile: profile,
+                exportTime: new Date().toISOString(),
+                version: '1.4',
+                source: '店员A导出',
+                exportScope: {
+                    products: includeProducts,
+                    history: includeHistory
+                },
+                summary: {
+                    productCount: exportProducts.length,
+                    historyCount: exportHistory.length
+                }
+            };
+        }
+
+        function downloadExportPayload(payload, filenamePrefix = '收银数据备份') {
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `收银系统备份_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `${filenamePrefix}_${new Date().toISOString().slice(0,10)}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        function openExportOptionsModal() {
+            const modal = document.getElementById('exportOptionsModal');
+            const info = document.getElementById('exportInfo');
+
+            info.innerHTML = `
+                <p><strong>当前设备:</strong> ${deviceProfile?.deviceId || '未知设备'}</p>
+                <p><strong>商品数量:</strong> ${products.length} 件</p>
+                <p><strong>历史订单:</strong> ${history.length} 条</p>
+                <p style="color: #666;">可按需导出商品资料、历史订单或两者一起导出。</p>
+            `;
+
+            const defaultOption = document.querySelector('input[name="exportScope"][value="all"]');
+            if (defaultOption) defaultOption.checked = true;
+            modal.classList.add('active');
+        }
+
+        function closeExportOptionsModal() {
+            document.getElementById('exportOptionsModal').classList.remove('active');
+        }
+
+        async function confirmExport() {
+            const scope = getSelectedExportScope();
+            const options = {
+                products: scope === 'all' || scope === 'products',
+                history: scope === 'all' || scope === 'history'
+            };
+
+            const payload = await buildExportPayload(options);
+            downloadExportPayload(payload);
+            closeExportOptionsModal();
+
+            const scopeText = options.products && options.history
+                ? '商品信息 + 历史数据'
+                : options.products
+                    ? '仅商品信息'
+                    : '仅历史数据';
+            showScanToast(`✅ 导出成功（${scopeText}）`, false);
+        }
+
+        // 导出备份
+        async function exportData() {
+            openExportOptionsModal();
         }
 
         // 导入备份
@@ -2118,18 +2487,40 @@
                     const text = await file.text();
                     const data = JSON.parse(text);
 
-                    if (!confirm(`确定导入此备份？当前数据将被覆盖。\n\n商品: ${data.products?.length || 0} 条\n记录: ${data.history?.length || 0} 条`)) {
+                    if (!confirm(`确定导入此备份？\n\n商品: ${data.products?.length || 0} 条\n记录: ${data.history?.length || 0} 条`)) {
                         return;
                     }
 
-                    if (data.products) {
+                    if (Array.isArray(data.products) && data.products.length > 0) {
                         products = data.products.map(normalizeProduct);
                     }
-                    if (data.history) history = data.history;
+                    if (Array.isArray(data.history) && data.history.length > 0) {
+                        const incomingDeviceId = data.deviceProfile?.deviceId || 'import_device';
+                        const importedHistory = data.history.map((record, index) =>
+                            normalizeHistoryRecord(record, incomingDeviceId, index)
+                        );
+                        const currentHistoryByOrderId = new Map((history || []).map((record, index) => {
+                            const normalized = normalizeHistoryRecord(record, deviceProfile?.deviceId || 'local_device', index);
+                            return [normalized.orderId, normalized];
+                        }));
+
+                        importedHistory.forEach((record) => {
+                            if (!currentHistoryByOrderId.has(record.orderId)) {
+                                currentHistoryByOrderId.set(record.orderId, record);
+                            }
+                        });
+
+                        history = Array.from(currentHistoryByOrderId.values()).sort((a, b) => {
+                            const timeA = a.createdAt || Date.parse(a.time || '') || 0;
+                            const timeB = b.createdAt || Date.parse(b.time || '') || 0;
+                            return timeB - timeA;
+                        });
+                    }
 
                     // 保存到新位置
                     await saveDataToFile();
                     await saveHistoryToFile();
+                    await updateBackupBaseline(Date.now());
 
                     renderProductList();
                     updateCart();
@@ -2142,31 +2533,850 @@
             input.click();
         }
 
-        // 使用内存模式（不连接文件系统）
-        function useMemoryMode() {
-            useFileSystem = false;
-            document.getElementById('folderPrompt').classList.remove('active');
-            document.getElementById('dataManager').style.display = 'block';
-            document.getElementById('dataStatus').textContent = '内存模式（刷新后数据丢失）';
+        // 自动备份相关配置
+        const AUTO_BACKUP_DAYS = 15; // 自动备份间隔天数
+        const MAX_AUTO_BACKUPS = 10; // 最多保留的自动备份数量
+        let backupSequence = 0;
+        const APP_DB_NAME = 'cashierDB';
+        const APP_DB_VERSION = 2;
+        const APP_DB_STORES = {
+            products: 'products',
+            history: 'history',
+            backups: 'backups',
+            meta: 'meta',
+            images: 'images'
+        };
+        let appDbPromise = null;
+        
+        // 计算数据简单哈希（用于检测变化）
+        function simpleHash(data) {
+            const str = JSON.stringify(data);
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString();
+        }
+        
+        function openAppDB() {
+            if (appDbPromise) return appDbPromise;
 
-            // 尝试从 localStorage 加载
+            appDbPromise = new Promise((resolve, reject) => {
+                const request = indexedDB.open(APP_DB_NAME, APP_DB_VERSION);
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+
+                    Object.values(APP_DB_STORES).forEach((storeName) => {
+                        if (!db.objectStoreNames.contains(storeName)) {
+                            db.createObjectStore(storeName, { keyPath: 'key' });
+                        }
+                    });
+                };
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+
+            return appDbPromise;
+        }
+
+        function withStore(storeName, mode, handler) {
+            return openAppDB().then((db) => new Promise((resolve, reject) => {
+                const tx = db.transaction(storeName, mode);
+                const store = tx.objectStore(storeName);
+                const request = handler(store);
+
+                tx.oncomplete = () => {
+                    resolve(request ? request.result : undefined);
+                };
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+            }));
+        }
+
+        function idbGetRecord(storeName, key) {
+            return withStore(storeName, 'readonly', (store) => store.get(key));
+        }
+
+        function idbPutRecord(storeName, value) {
+            return withStore(storeName, 'readwrite', (store) => store.put(value));
+        }
+
+        async function dbLoadProducts() {
+            const record = await idbGetRecord(APP_DB_STORES.products, 'current');
+            const items = Array.isArray(record?.items) ? record.items.map(normalizeProduct) : [];
+            return hydrateProductsWithPhotos(items);
+        }
+
+        async function dbSaveAllProducts(items) {
+            const persistedItems = await serializeProductsForStorage(items);
+            await idbPutRecord(APP_DB_STORES.products, { key: 'current', items: persistedItems });
+            await cleanupUnusedImages();
+        }
+
+        async function dbLoadHistory() {
+            const record = await idbGetRecord(APP_DB_STORES.history, 'current');
+            return Array.isArray(record?.items)
+                ? record.items.map((item, index) => normalizeHistoryRecord(item, deviceProfile?.deviceId || 'local_device', index))
+                : [];
+        }
+
+        async function dbSaveAllHistory(items) {
+            await idbPutRecord(APP_DB_STORES.history, { key: 'current', items });
+        }
+
+        async function dbGetAllBackups() {
+            const record = await idbGetRecord(APP_DB_STORES.backups, 'list');
+            if (!Array.isArray(record?.items)) return [];
+
+            return record.items.map((backup) => ({
+                ...backup,
+                dateText: backup.dateText || formatDateTime(backup.date || backup.timestamp),
+                type: backup.type || 'auto'
+            }));
+        }
+
+        async function dbSaveBackups(backups) {
+            await idbPutRecord(APP_DB_STORES.backups, { key: 'list', items: backups });
+            await cleanupUnusedImages();
+        }
+
+        async function dbGetImageRecord(imageId) {
+            if (!imageId) return null;
+            return (await idbGetRecord(APP_DB_STORES.images, imageId)) || null;
+        }
+
+        async function dbSaveImageRecord(record) {
+            await idbPutRecord(APP_DB_STORES.images, record);
+        }
+
+        async function getPhotoByImageId(imageId) {
+            const record = await dbGetImageRecord(imageId);
+            return record?.dataUrl || '';
+        }
+
+        async function ensureImageStored(photoDataUrl) {
+            if (!photoDataUrl) return '';
+
+            const checksum = simpleHash(photoDataUrl);
+            const imageId = `img_${checksum}`;
+            const existing = await dbGetImageRecord(imageId);
+            const now = Date.now();
+
+            if (existing) {
+                if (existing.lastUsedAt !== now) {
+                    await dbSaveImageRecord({
+                        ...existing,
+                        lastUsedAt: now
+                    });
+                }
+                return imageId;
+            }
+
+            await dbSaveImageRecord({
+                key: imageId,
+                id: imageId,
+                checksum,
+                dataUrl: photoDataUrl,
+                createdAt: now,
+                lastUsedAt: now
+            });
+
+            return imageId;
+        }
+
+        async function hydrateProductsWithPhotos(items) {
+            const hydrated = [];
+
+            for (const item of items || []) {
+                const product = normalizeProduct(item);
+                if (!product.photo && product.imageId) {
+                    product.photo = await getPhotoByImageId(product.imageId);
+                }
+                hydrated.push(product);
+            }
+
+            return hydrated;
+        }
+
+        async function serializeProductsForStorage(items) {
+            const serialized = [];
+
+            for (const item of items || []) {
+                const product = normalizeProduct(item);
+                let imageId = product.imageId || '';
+
+                if (product.photo) {
+                    imageId = await ensureImageStored(product.photo);
+                    product.imageId = imageId;
+                } else if (!product.imageId) {
+                    imageId = '';
+                }
+
+                serialized.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    code: product.code,
+                    barcode: product.barcode || '',
+                    imageId,
+                    createdAt: product.createdAt,
+                    updatedAt: product.updatedAt,
+                    deleted: product.deleted
+                });
+            }
+
+            return serialized;
+        }
+
+        async function dbGetBackupBaseline() {
+            const record = await idbGetRecord(APP_DB_STORES.meta, 'backupBaseline');
+            return record?.value || null;
+        }
+
+        async function dbSetBackupBaseline(value) {
+            await idbPutRecord(APP_DB_STORES.meta, { key: 'backupBaseline', value });
+        }
+
+        async function dbGetDeviceProfile() {
+            const record = await idbGetRecord(APP_DB_STORES.meta, 'deviceProfile');
+            return record?.value || null;
+        }
+
+        async function dbSetDeviceProfile(value) {
+            await idbPutRecord(APP_DB_STORES.meta, { key: 'deviceProfile', value });
+        }
+
+        async function hasIndexedDBData() {
+            const [productRecord, historyRecord, backupsRecord, baseline] = await Promise.all([
+                idbGetRecord(APP_DB_STORES.products, 'current'),
+                idbGetRecord(APP_DB_STORES.history, 'current'),
+                idbGetRecord(APP_DB_STORES.backups, 'list'),
+                dbGetBackupBaseline()
+            ]);
+
+            return Boolean(
+                (Array.isArray(productRecord?.items) && productRecord.items.length > 0) ||
+                (Array.isArray(historyRecord?.items) && historyRecord.items.length > 0) ||
+                (Array.isArray(backupsRecord?.items) && backupsRecord.items.length > 0) ||
+                baseline
+            );
+        }
+
+        async function migrateLocalStorageToIndexedDB() {
+            if (localStorage.getItem('idbMigrated') === '1') return;
+            if (await hasIndexedDBData()) {
+                localStorage.setItem('idbMigrated', '1');
+                return;
+            }
+
             const savedProducts = localStorage.getItem('products');
             const savedHistory = localStorage.getItem('history');
+            const savedBackups = localStorage.getItem('autoBackups');
+            const lastBackupTime = localStorage.getItem('lastBackupTime');
+            const lastProductsHash = localStorage.getItem('lastProductsHash');
+            const lastHistoryHash = localStorage.getItem('lastHistoryHash');
 
             if (savedProducts) {
                 try {
-                    const data = JSON.parse(savedProducts);
-                    products = data.map(normalizeProduct);
-                } catch(e) {}
+                    await dbSaveAllProducts(JSON.parse(savedProducts).map(normalizeProduct));
+                } catch (error) {
+                    console.error('迁移商品数据失败:', error);
+                }
             }
+
             if (savedHistory) {
                 try {
-                    history = JSON.parse(savedHistory);
-                } catch(e) {}
+                    const profile = deviceProfile || { deviceId: generateDeviceId() };
+                    await normalizeAndPersistHistoryRecords(JSON.parse(savedHistory), profile.deviceId);
+                } catch (error) {
+                    console.error('迁移历史数据失败:', error);
+                }
+            }
+
+            if (savedBackups) {
+                try {
+                    const backups = JSON.parse(savedBackups).map((backup) => ({
+                        ...backup,
+                        type: backup.type || 'auto'
+                    }));
+                    await dbSaveBackups(backups);
+                } catch (error) {
+                    console.error('迁移备份数据失败:', error);
+                }
+            }
+
+            if (lastBackupTime || lastProductsHash || lastHistoryHash) {
+                await dbSetBackupBaseline({
+                    lastBackupTime: parseInt(lastBackupTime || '0'),
+                    lastProductsHash: lastProductsHash || '',
+                    lastHistoryHash: lastHistoryHash || ''
+                });
+            }
+
+            localStorage.setItem('idbMigrated', '1');
+        }
+
+        async function ensureDeviceProfile() {
+            let profile = await dbGetDeviceProfile();
+            if (profile?.deviceId) {
+                deviceProfile = profile;
+                return profile;
+            }
+
+            profile = {
+                deviceId: generateDeviceId(),
+                createdAt: Date.now()
+            };
+
+            await dbSetDeviceProfile(profile);
+            deviceProfile = profile;
+            return profile;
+        }
+
+        function normalizeHistoryRecord(record, fallbackDeviceId, index = 0) {
+            const createdAt = record?.createdAt || Date.parse(record?.time || '') || Date.now() + index;
+            const deviceId = record?.deviceId || fallbackDeviceId || 'legacy_device';
+            const orderId = record?.orderId || `${deviceId}_${createdAt}_${index}`;
+
+            return {
+                ...record,
+                orderId,
+                deviceId,
+                createdAt,
+                time: record?.time || formatDateTime(createdAt)
+            };
+        }
+
+        async function normalizeAndPersistHistoryRecords(records, fallbackDeviceId) {
+            const normalized = (records || []).map((record, index) =>
+                normalizeHistoryRecord(record, fallbackDeviceId, index)
+            );
+            await dbSaveAllHistory(normalized);
+            return normalized;
+        }
+
+        async function migrateImageReferencesInIndexedDB() {
+            const migrationMeta = await idbGetRecord(APP_DB_STORES.meta, 'imageRefMigration');
+            if (migrationMeta?.value?.done) return;
+
+            const productRecord = await idbGetRecord(APP_DB_STORES.products, 'current');
+            if (Array.isArray(productRecord?.items) && productRecord.items.length > 0) {
+                const migratedProducts = await serializeProductsForStorage(productRecord.items.map(normalizeProduct));
+                await idbPutRecord(APP_DB_STORES.products, { key: 'current', items: migratedProducts });
+            }
+
+            const backupsRecord = await idbGetRecord(APP_DB_STORES.backups, 'list');
+            if (Array.isArray(backupsRecord?.items) && backupsRecord.items.length > 0) {
+                const migratedBackups = [];
+
+                for (const backup of backupsRecord.items) {
+                    const migratedProducts = await serializeProductsForStorage((backup.products || []).map(normalizeProduct));
+                    migratedBackups.push({
+                        ...backup,
+                        products: migratedProducts
+                    });
+                }
+
+                await dbSaveBackups(migratedBackups);
+            }
+
+            await idbPutRecord(APP_DB_STORES.meta, {
+                key: 'imageRefMigration',
+                value: {
+                    done: true,
+                    timestamp: Date.now()
+                }
+            });
+        }
+
+        async function migrateHistoryOrderIds() {
+            const migrationMeta = await idbGetRecord(APP_DB_STORES.meta, 'historyOrderMigration');
+            if (migrationMeta?.value?.done) return;
+
+            const profile = deviceProfile || await ensureDeviceProfile();
+            const historyRecord = await idbGetRecord(APP_DB_STORES.history, 'current');
+            if (Array.isArray(historyRecord?.items) && historyRecord.items.length > 0) {
+                const normalizedHistory = historyRecord.items.map((record, index) =>
+                    normalizeHistoryRecord(record, profile.deviceId, index)
+                );
+                await dbSaveAllHistory(normalizedHistory);
+            }
+
+            await idbPutRecord(APP_DB_STORES.meta, {
+                key: 'historyOrderMigration',
+                value: {
+                    done: true,
+                    timestamp: Date.now()
+                }
+            });
+        }
+
+        async function cleanupUnusedImages() {
+            const [productRecord, backupsRecord] = await Promise.all([
+                idbGetRecord(APP_DB_STORES.products, 'current'),
+                idbGetRecord(APP_DB_STORES.backups, 'list')
+            ]);
+
+            const referencedImageIds = new Set();
+
+            (productRecord?.items || []).forEach((product) => {
+                if (product?.imageId) referencedImageIds.add(product.imageId);
+            });
+
+            (backupsRecord?.items || []).forEach((backup) => {
+                (backup?.products || []).forEach((product) => {
+                    if (product?.imageId) referencedImageIds.add(product.imageId);
+                });
+            });
+
+            const imageListRecord = await withStore(APP_DB_STORES.images, 'readonly', (store) => store.getAll());
+            const allImages = Array.isArray(imageListRecord) ? imageListRecord : [];
+
+            const unusedKeys = allImages
+                .filter((image) => image?.key && !referencedImageIds.has(image.key))
+                .map((image) => image.key);
+
+            if (unusedKeys.length === 0) return;
+
+            await withStore(APP_DB_STORES.images, 'readwrite', (store) => {
+                unusedKeys.forEach((key) => store.delete(key));
+                return null;
+            });
+        }
+
+        async function updateBackupBaseline(timestamp = Date.now()) {
+            await dbSetBackupBaseline({
+                lastBackupTime: timestamp,
+                lastProductsHash: simpleHash(products),
+                lastHistoryHash: simpleHash(history)
+            });
+        }
+
+        function isQuotaExceededError(error) {
+            return error && (
+                error.name === 'QuotaExceededError' ||
+                error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                error.code === 22 ||
+                error.code === 1014
+            );
+        }
+
+        async function saveBackupsToStorage(backups) {
+            let nextBackups = [...backups];
+
+            while (nextBackups.length > 0) {
+                try {
+                    await dbSaveBackups(nextBackups);
+                    return nextBackups;
+                } catch (error) {
+                    if (!isQuotaExceededError(error) || nextBackups.length === 1) {
+                        throw error;
+                    }
+
+                    // localStorage 空间不足时优先丢弃最旧备份，保证新备份能落盘
+                    nextBackups.pop();
+                }
+            }
+
+            await dbSaveBackups([]);
+            return [];
+        }
+
+        async function persistCurrentData() {
+            await dbSaveAllProducts(products);
+            await dbSaveAllHistory(history);
+        }
+
+        // 检查并执行自动备份
+        async function checkAndDoAutoBackup() {
+            const now = Date.now();
+            const baseline = await dbGetBackupBaseline();
+            const lastBackupTime = parseInt(baseline?.lastBackupTime || '0');
+            const lastProductsHash = baseline?.lastProductsHash || '';
+            const lastHistoryHash = baseline?.lastHistoryHash || '';
+            
+            // 计算当前数据哈希
+            const currentProductsHash = simpleHash(products);
+            const currentHistoryHash = simpleHash(history);
+            
+            // 检查是否需要备份（超过15天且数据有变化）
+            const daysSinceLastBackup = (now - lastBackupTime) / (1000 * 60 * 60 * 24);
+            const dataChanged = (currentProductsHash !== lastProductsHash) || (currentHistoryHash !== lastHistoryHash);
+            
+            if (daysSinceLastBackup >= AUTO_BACKUP_DAYS && dataChanged) {
+                console.log('执行自动备份...');
+                await createAutoBackup('auto');
+                
+                // 更新备份记录
+                await updateBackupBaseline(now);
+                
+                showScanToast(`✅ 已自动备份 (${formatDateTime(now)})`, false);
+            }
+        }
+        
+        // 创建备份
+        async function createAutoBackup(type = 'auto') {
+            const timestamp = Date.now();
+            const backup = {
+                id: `${timestamp}-${backupSequence++}`,
+                date: new Date().toISOString(),
+                dateText: formatDateTime(timestamp),
+                timestamp,
+                products: await serializeProductsForStorage(products),
+                history: JSON.parse(JSON.stringify(history)),
+                type
+            };
+            
+            let backups = await getAutoBackups();
+            
+            // 添加新备份到开头
+            backups.unshift(backup);
+            
+            // 保持最多 MAX_AUTO_BACKUPS 个备份
+            if (backups.length > MAX_AUTO_BACKUPS) {
+                backups = backups.slice(0, MAX_AUTO_BACKUPS);
+            }
+            
+            // 保存备份列表
+            const savedBackups = await saveBackupsToStorage(backups);
+            console.log('备份已创建:', backup.id, backup.type);
+            if (savedBackups.length < backups.length) {
+                showScanToast('备份空间不足，已自动清理较旧备份', true);
+            }
+            return backup;
+        }
+
+        async function createManualBackup() {
+            try {
+                await createAutoBackup('manual');
+                await renderBackupList();
+                showScanToast('手动备份已创建', false);
+            } catch (error) {
+                console.error('手动备份失败:', error);
+                alert('手动备份失败：浏览器存储空间可能已满，请先导出数据或删除旧备份。');
+            }
+        }
+        
+        // 获取所有自动备份
+        async function getAutoBackups() {
+            try {
+                return await dbGetAllBackups();
+            } catch (error) {
+                console.error('读取备份失败:', error);
+                return [];
+            }
+        }
+        
+        // 恢复到指定备份
+        async function restoreFromBackup(backupId) {
+            const backups = await getAutoBackups();
+            const backup = backups.find(b => b.id === backupId);
+            
+            if (!backup) {
+                alert('备份不存在');
+                return;
+            }
+            
+            const backupDateText = backup.dateText || formatDateTime(backup.date || backup.timestamp);
+            if (!confirm(`确定要恢复到 ${backupDateText} 的备份吗？\n\n当前数据将被覆盖，建议先导出当前数据作为备份。`)) {
+                return;
+            }
+            
+            // 先创建当前数据的应急备份
+            try {
+                await createAutoBackup('emergency');
+            } catch (error) {
+                console.error('创建应急备份失败:', error);
+                alert('创建应急备份失败，已取消恢复操作。请先导出当前数据或删除旧备份后重试。');
+                return;
+            }
+            
+            // 恢复数据
+            products = await hydrateProductsWithPhotos((backup.products || []).map(normalizeProduct));
+            history = backup.history || [];
+            
+            // 保存到 IndexedDB
+            await persistCurrentData();
+            await updateBackupBaseline(Date.now());
+            
+            // 刷新界面
+            renderProductList();
+            updateCart();
+            
+            alert('✅ 数据已恢复！\n\n当前数据已自动保存为应急备份，如需还原可从备份列表中选择。');
+            await renderBackupList();
+        }
+        
+        // 删除指定备份
+        async function deleteBackup(backupId) {
+            if (!confirm('确定删除此备份吗？')) return;
+            
+            let backups = await getAutoBackups();
+            backups = backups.filter(b => b.id !== backupId);
+            try {
+                await saveBackupsToStorage(backups);
+            } catch (error) {
+                console.error('删除备份后写回失败:', error);
+                alert('删除备份失败，请重试。');
+                return;
+            }
+            await renderBackupList();
+        }
+        
+        // 打开备份管理弹窗
+        async function openBackupModal() {
+            document.getElementById('backupModal').classList.add('active');
+            await renderBackupList();
+        }
+        
+        // 关闭备份管理弹窗
+        function closeBackupModal() {
+            document.getElementById('backupModal').classList.remove('active');
+        }
+        
+        // 渲染备份列表
+        async function renderBackupList() {
+            const backups = await getAutoBackups();
+            const list = document.getElementById('backupList');
+            
+            if (backups.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">暂无备份</div>';
+                return;
+            }
+
+            const sections = [
+                { type: 'auto', title: '💾 自动备份', emptyText: '暂无自动备份', background: '#ffffff' },
+                { type: 'manual', title: '🖐 手动备份', emptyText: '暂无手动备份', background: '#fffbe6' },
+                { type: 'emergency', title: '🚨 应急备份', emptyText: '暂无应急备份', background: '#fff2f0' }
+            ];
+
+            list.innerHTML = sections.map(section => {
+                const items = backups.filter(backup => backup.type === section.type);
+                const content = items.length === 0
+                    ? `<div style="padding: 16px; color: #999; text-align: center;">${section.emptyText}</div>`
+                    : items.map(backup => {
+                        const dateText = backup.dateText || formatDateTime(backup.date || backup.timestamp || Date.now());
+                        const productCount = Array.isArray(backup.products) ? backup.products.length : 0;
+                        const historyCount = Array.isArray(backup.history) ? backup.history.length : 0;
+                        const backupId = JSON.stringify(backup.id);
+
+                        return `
+                            <div class="backup-item" style="padding: 15px; border-top: 1px solid #f0f0f0; background: ${section.background};">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                                    <div>
+                                        <div style="font-weight: 500; color: #333;">${dateText}</div>
+                                        <div style="font-size: 12px; color: #999; margin-top: 4px;">商品: ${productCount} 件 | 记录: ${historyCount} 条</div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                                        <button class="btn" style="padding: 6px 12px; font-size: 12px; background: #e6f7ff; color: #1890ff;" onclick='restoreFromBackup(${backupId})'>恢复</button>
+                                        <button class="btn" style="padding: 6px 12px; font-size: 12px; background: #fff1f0; color: #ff4d4f;" onclick='deleteBackup(${backupId})'>删除</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div style="border-bottom: 1px solid #f0f0f0;">
+                        <div style="padding: 12px 15px; font-weight: 600; color: #333; background: #fafafa;">${section.title}</div>
+                        ${content}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 简化版导出数据（给店员A使用）
+        async function exportSimpleData() {
+            openExportOptionsModal();
+        }
+        
+        // 简化版导入数据（给店员B使用）
+        async function importSimpleData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    
+                    const hasProducts = Array.isArray(data.products) && data.products.length > 0;
+                    const hasHistory = Array.isArray(data.history) && data.history.length > 0;
+
+                    if (!hasProducts && !hasHistory) {
+                        alert('文件格式不正确：商品信息和历史数据都为空。');
+                        return;
+                    }
+                    
+                    // 显示导入确认弹窗
+                    openImportConfirmModal(data, file.name);
+                } catch (err) {
+                    alert('导入失败: ' + err.message);
+                }
+            };
+            input.click();
+        }
+        
+        // 打开导入确认弹窗
+        function openImportConfirmModal(data, filename) {
+            const modal = document.getElementById('importConfirmModal');
+            const info = document.getElementById('importInfo');
+            const importProductsCheckbox = document.getElementById('importProductsCheckbox');
+            const importHistoryCheckbox = document.getElementById('importHistoryCheckbox');
+            
+            const productCount = data.products?.length || 0;
+            const historyCount = data.history?.length || 0;
+            const exportTime = data.exportTime ? new Date(data.exportTime).toLocaleString() : '未知';
+            const sourceDeviceId = data.deviceProfile?.deviceId || '未知设备';
+            
+            info.innerHTML = `
+                <p><strong>文件名:</strong> ${filename}</p>
+                <p><strong>导出时间:</strong> ${exportTime}</p>
+                <p><strong>来源设备:</strong> ${sourceDeviceId}</p>
+                <p><strong>商品数量:</strong> ${productCount} 件</p>
+                <p><strong>记录数量:</strong> ${historyCount} 条</p>
+                <hr style="margin: 15px 0;">
+                <p style="color: #ff4d4f;">⚠️ 商品信息按选择覆盖导入，历史订单按 orderId 合并去重。空数据项会自动跳过，不会清空本地数据。</p>
+            `;
+
+            importProductsCheckbox.checked = productCount > 0;
+            importProductsCheckbox.disabled = productCount === 0;
+            importHistoryCheckbox.checked = historyCount > 0;
+            importHistoryCheckbox.disabled = historyCount === 0;
+            
+            // 保存数据到全局变量，确认时使用
+            window.pendingImportData = data;
+            
+            modal.classList.add('active');
+        }
+        
+        // 关闭导入确认弹窗
+        function closeImportConfirmModal() {
+            document.getElementById('importConfirmModal').classList.remove('active');
+            window.pendingImportData = null;
+        }
+
+        function getImportOptionsFromUI() {
+            return {
+                importProducts: document.getElementById('importProductsCheckbox')?.checked || false,
+                importHistory: document.getElementById('importHistoryCheckbox')?.checked || false
+            };
+        }
+        
+        // 确认导入
+        async function confirmImport() {
+            const data = window.pendingImportData;
+            if (!data) {
+                closeImportConfirmModal();
+                return;
+            }
+
+            const options = getImportOptionsFromUI();
+            if (!options.importProducts && !options.importHistory) {
+                alert('请至少选择一个导入项。');
+                return;
+            }
+            
+            // 先创建当前数据的应急备份
+            try {
+                await createAutoBackup('emergency');
+            } catch (error) {
+                console.error('导入前创建应急备份失败:', error);
+                alert('创建应急备份失败，已取消导入操作。请先导出当前数据或删除旧备份后重试。');
+                return;
+            }
+            
+            const hasProductData = Array.isArray(data.products) && data.products.length > 0;
+            const hasHistoryData = Array.isArray(data.history) && data.history.length > 0;
+            let importedProductCount = 0;
+            let addedHistoryCount = 0;
+            let skippedHistoryCount = 0;
+
+            // 导入数据
+            if (options.importProducts && hasProductData) {
+                products = await hydrateProductsWithPhotos(data.products.map(normalizeProduct));
+                importedProductCount = data.products.length;
+            }
+            if (options.importHistory && hasHistoryData) {
+                const incomingDeviceId = data.deviceProfile?.deviceId || 'import_device';
+                const importedHistory = data.history.map((record, index) => normalizeHistoryRecord(record, incomingDeviceId, index));
+                const currentHistoryByOrderId = new Map((history || []).map((record, index) => {
+                    const normalized = normalizeHistoryRecord(record, deviceProfile?.deviceId || 'local_device', index);
+                    return [normalized.orderId, normalized];
+                }));
+
+                importedHistory.forEach((record) => {
+                    if (!currentHistoryByOrderId.has(record.orderId)) {
+                        currentHistoryByOrderId.set(record.orderId, record);
+                        addedHistoryCount += 1;
+                    } else {
+                        skippedHistoryCount += 1;
+                    }
+                });
+
+                history = Array.from(currentHistoryByOrderId.values()).sort((a, b) => {
+                    const timeA = a.createdAt || Date.parse(a.time || '') || 0;
+                    const timeB = b.createdAt || Date.parse(b.time || '') || 0;
+                    return timeB - timeA;
+                });
+            }
+            
+            // 保存到 IndexedDB
+            await persistCurrentData();
+            await updateBackupBaseline(Date.now());
+            
+            // 更新界面
+            renderProductList();
+            updateCart();
+            
+            closeImportConfirmModal();
+
+            const productMessage = options.importProducts
+                ? (hasProductData ? `商品信息：已覆盖 ${importedProductCount} 条` : '商品信息：文件为空，已跳过')
+                : '商品信息：未导入';
+            const historyMessage = options.importHistory
+                ? (hasHistoryData ? `历史订单：新增 ${addedHistoryCount} 条，跳过重复 ${skippedHistoryCount} 条` : '历史订单：文件为空，已跳过')
+                : '历史订单：未导入';
+
+            alert(`✅ 数据导入成功！\n\n${productMessage}\n${historyMessage}\n\n原有数据已自动保存为应急备份，如需还原可从备份管理中选择。`);
+        }
+
+        // 使用 IndexedDB 模式（无需配置文件夹）
+        async function startWithIndexedDB() {
+            useFileSystem = false;
+            document.getElementById('folderPrompt').classList.remove('active');
+            document.getElementById('dataManager').style.display = 'block';
+            document.getElementById('dataStatus').textContent = '本地数据库';
+
+            await openAppDB();
+            await ensureDeviceProfile();
+            await migrateLocalStorageToIndexedDB();
+            await migrateHistoryOrderIds();
+            await migrateImageReferencesInIndexedDB();
+            products = await dbLoadProducts();
+            history = await dbLoadHistory();
+
+            // 初始化备份记录（首次使用）
+            if (!await dbGetBackupBaseline()) {
+                await updateBackupBaseline(Date.now());
             }
 
             renderProductList();
             updateCart();
+            
+            // 检查是否需要自动备份
+            await checkAndDoAutoBackup();
+        }
+
+        async function startWithLocalStorage() {
+            await startWithIndexedDB();
         }
         // 切换数据管理面板展开/折叠
         function toggleDataManager() {
@@ -2178,14 +3388,14 @@
         // ========== 文件系统操作函数结束 ==========
 
 // 初始化
-        function init() {
+        async function init() {
             updateAppHeight();
             window.addEventListener('resize', handleViewportLayoutChange);
             window.addEventListener('orientationchange', handleViewportLayoutChange);
             window.visualViewport?.addEventListener('resize', handleViewportLayoutChange);
 
-            // 显示文件夹选择提示
-            document.getElementById('folderPrompt').classList.add('active');
+            // 默认使用 IndexedDB 模式，不强制选择文件夹
+            await startWithIndexedDB();
 
             // 默认展开添加商品表单，确保用户能看到
             const addForm = document.getElementById('addProductForm');
@@ -2195,8 +3405,10 @@
                 addIcon.textContent = '点击折叠 ▼';
             }
 
-            renderProductList();
-            updateCart();
+            // 预请求相机权限（只执行一次，后续不再弹窗请求）
+            // 注意：需要用户主动与页面交互后才会弹出权限请求
+            // 我们在点击“扫码”按钮时才会请求权限
+            // 这里只是初始化，不会弹窗
 
             // 全局键盘监听
             document.addEventListener('keydown', (e) => {
@@ -2213,7 +3425,8 @@
                     closeModal();
                     closeHistory();
                     closeBarcodeBindModal();
-                    closeScannerModal();
+                    // ESC键总是完全关闭扫描弹窗（包括连续模式）
+                    fullyCloseScannerModal();
                     closePhotoModal();
                     document.getElementById('searchDropdown').classList.remove('active');
                 }
@@ -2241,7 +3454,8 @@
             if (useFileSystem) {
                 await saveDataToFile();
             } else {
-                localStorage.setItem('products', JSON.stringify(products));
+                await dbSaveAllProducts(products);
+                await checkAndDoAutoBackup();
             }
         }
 
@@ -2272,6 +3486,7 @@
                 price,
                 code: code || pinyinFirstLetters(name),
                 barcode: barcode || '',
+                imageId: '',
                 photo: productPhotoPreview || ''
             };
 
@@ -9219,6 +10434,7 @@
             const total = parseFloat(document.getElementById('totalPrice').textContent);
             const payment = parseFloat(document.getElementById('paymentInput').value) || 0;
             const customerName = document.getElementById('customerNameInput').value || '';
+            const now = Date.now();
 
             if (payment < total) {
                 alert('实收金额不足！');
@@ -9227,7 +10443,10 @@
 
             // 保存交易记录
             const record = {
-                time: new Date().toLocaleString(),
+                orderId: generateOrderId(deviceProfile?.deviceId || 'unknown_device'),
+                deviceId: deviceProfile?.deviceId || 'unknown_device',
+                createdAt: now,
+                time: formatDateTime(now),
                 items: [...cart],
                 total: total,
                 payment: payment,
@@ -9241,7 +10460,7 @@
             if (useFileSystem) {
                 await saveHistoryToFile();
             } else {
-                localStorage.setItem('history', JSON.stringify(history));
+                await saveHistoryToFile();
             }
 
             // 打印小票（模拟）
@@ -9591,11 +10810,7 @@
         async function clearHistory() {
             if (confirm('确定清空所有交易记录吗？')) {
                 history = [];
-                if (useFileSystem) {
-                    await saveHistoryToFile();
-                } else {
-                    localStorage.removeItem('history');
-                }
+                await saveHistoryToFile();
                 showHistory();
             }
         }
