@@ -9,6 +9,17 @@
     <style>
         :root {
             --app-height: 100vh;
+            --floating-gap: clamp(12px, 3vw, 20px);
+            --floating-radius: clamp(14px, 3.4vw, 18px);
+            --compact-font: clamp(10px, 2.8vw, 13px);
+            --compact-padding-y: clamp(7px, 2.4vw, 10px);
+            --compact-padding-x: clamp(10px, 3.8vw, 16px);
+            --checkout-font: clamp(14px, 3.8vw, 16px);
+            --checkout-padding-y: clamp(10px, 2.6vw, 12px);
+            --checkout-padding-x: clamp(16px, 4.8vw, 24px);
+            --summary-value-font: clamp(18px, 4.8vw, 22px);
+            --detail-label-font: clamp(12px, 3.2vw, 14px);
+            --detail-value-font: clamp(16px, 4.4vw, 20px);
         }
 
         * {
@@ -329,18 +340,36 @@
             font-weight: bold;
         }
 
+        .quantity-control input {
+            width: 56px;
+            height: 28px;
+            padding: 4px 6px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .quantity-control input:focus {
+            border-color: #1890ff;
+            outline: none;
+        }
+
         .checkout-area {
             background: #fff;
-            padding: 20px;
+            padding: clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px);
             border-top: 2px solid #e0e0e0;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: clamp(12px, 3vw, 18px);
         }
 
         .total-info {
             display: flex;
-            gap: 30px;
+            gap: clamp(12px, 3vw, 18px);
+            flex-wrap: wrap;
         }
 
         .total-item {
@@ -348,26 +377,27 @@
         }
 
         .total-item .label {
-            font-size: 14px;
+            font-size: clamp(12px, 3vw, 13px);
             color: #666;
             display: block;
         }
 
         .total-item .value {
-            font-size: 24px;
+            font-size: var(--summary-value-font);
             font-weight: bold;
             color: #f5222d;
         }
 
         .checkout-btn {
-            padding: 15px 40px;
-            font-size: 18px;
+            padding: var(--checkout-padding-y) var(--checkout-padding-x);
+            font-size: var(--checkout-font);
             background: #52c41a;
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(82, 196, 26, 0.4);
+            box-shadow: 0 3px 10px rgba(82, 196, 26, 0.28);
+            white-space: nowrap;
         }
 
         .checkout-btn:hover {
@@ -485,15 +515,16 @@
         /* 交易记录 */
         .history-btn {
             position: fixed;
-            bottom: 20px;
+            bottom: var(--floating-gap);
             left: 340px;
-            padding: 10px 20px;
+            padding: var(--compact-padding-y) var(--compact-padding-x);
+            font-size: var(--compact-font);
             background: #722ed1;
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: var(--floating-radius);
             cursor: move;
-            box-shadow: 0 2px 8px rgba(114, 46, 209, 0.4);
+            box-shadow: 0 2px 6px rgba(114, 46, 209, 0.28);
             user-select: none;
             white-space: nowrap;
             width: auto;
@@ -501,15 +532,39 @@
         }
 
         .history-list {
-            max-height: 400px;
+            max-height: min(58vh, 360px);
             overflow-y: auto;
         }
 
+        .history-filters {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(88px, 0.7fr)) repeat(2, minmax(132px, 0.95fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .history-filter-input {
+            width: 100%;
+            min-width: 0;
+            padding: 9px 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 8px;
+            font-size: 13px;
+            background: #fff;
+        }
+
+        .history-filter-input:focus {
+            border-color: #1890ff;
+            outline: none;
+        }
+
         .history-item {
-            padding: 15px;
+            padding: clamp(10px, 2.8vw, 14px);
             border-bottom: 1px solid #f0f0f0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            gap: clamp(8px, 2.5vw, 12px);
         }
 
         .history-time {
@@ -520,22 +575,24 @@
         .history-amount {
             font-weight: bold;
             color: #f5222d;
+            font-size: clamp(15px, 4vw, 16px);
+            white-space: nowrap;
         }
     
         /* 数据管理面板 - 最小化设计，位于左下角 */
         .data-manager {
             position: fixed;
-            bottom: 20px;
-            left: 20px;
+            bottom: var(--floating-gap);
+            left: var(--floating-gap);
             background: #fff;
-            padding: 10px 15px;
-            border-radius: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: clamp(7px, 2.4vw, 9px) clamp(10px, 3vw, 12px);
+            border-radius: var(--floating-radius);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             z-index: 999;
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 12px;
+            gap: clamp(6px, 2vw, 8px);
+            font-size: clamp(11px, 2.8vw, 12px);
             border: 1px solid #e0e0e0;
         }
 
@@ -561,7 +618,7 @@
         }
 
         .data-status {
-            font-size: 11px;
+            font-size: clamp(10px, 2.6vw, 11px);
             color: #999;
             padding: 2px 8px;
             background: #f5f5f5;
@@ -580,11 +637,11 @@
         }
 
         .data-actions button {
-            padding: 4px 10px;
-            font-size: 11px;
+            padding: clamp(3px, 1.6vw, 4px) clamp(7px, 2.8vw, 9px);
+            font-size: clamp(10px, 2.5vw, 11px);
             border: 1px solid #d9d9d9;
             background: #fff;
-            border-radius: 12px;
+            border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s;
             white-space: nowrap;
@@ -601,19 +658,53 @@
             border-color: #1890ff;
         }
 
+        .data-panel-modal .modal-content {
+            width: min(360px, calc(100vw - 24px));
+            max-width: calc(100vw - 24px);
+            padding: 16px 14px;
+        }
+
+        .data-panel-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .data-panel-actions button {
+            width: auto;
+            min-width: 88px;
+            padding: 9px 12px;
+            font-size: 13px;
+            text-align: center;
+            flex: 0 0 auto;
+        }
+
         .data-toggle {
             cursor: move;
-            padding: 2px 6px;
-            border-radius: 4px;
-            transition: background 0.2s;
+            padding: 6px 10px;
+            border-radius: 999px;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
             user-select: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             width: fit-content;
             height: fit-content;
+            border: 1px solid #d9d9d9;
+            background: #fafafa;
+            color: #333;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
         }
 
         .data-toggle:hover {
-            background: #f0f0f0;
+            background: #f0f7ff;
+            border-color: #91caff;
+            color: #1677ff;
         }
 
         /* 文件夹选择提示 */
@@ -1075,6 +1166,97 @@
                 position: sticky;
                 bottom: 0;
                 z-index: 10;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            }
+
+            .total-info {
+                justify-content: space-between;
+            }
+
+            .total-item {
+                flex: 1 1 120px;
+            }
+
+            .checkout-btn {
+                width: 100%;
+            }
+
+            .history-btn {
+                left: auto;
+                right: var(--floating-gap);
+                bottom: calc(var(--floating-gap) + 52px + env(safe-area-inset-bottom));
+                z-index: 1001;
+            }
+
+            .data-manager {
+                max-width: calc(100vw - 24px);
+                width: auto;
+                align-items: center;
+                padding: 6px;
+                border-radius: 999px;
+            }
+
+            .data-actions {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+            }
+
+            .data-actions button {
+                width: 100%;
+                min-width: 0;
+                text-align: center;
+            }
+
+            .data-manager:not(.collapsed) {
+                width: calc(100vw - 24px);
+                flex-direction: column;
+                align-items: stretch;
+                border-radius: 16px;
+                padding: 10px;
+            }
+
+            .data-manager:not(.collapsed) .data-toggle {
+                align-self: flex-start;
+            }
+
+            .data-manager:not(.collapsed) .data-status {
+                align-self: flex-start;
+            }
+
+            .data-manager:not(.collapsed) .data-actions button {
+                min-height: 36px;
+            }
+
+            .modal-content {
+                min-width: 0;
+                width: calc(100vw - 24px);
+                max-width: calc(100vw - 24px);
+                padding: 18px 16px;
+            }
+
+            #historyModal .modal-content,
+            #historyDetailModal .modal-content {
+                max-height: calc(var(--app-height) - 24px);
+                overflow-y: auto;
+            }
+
+            .history-list {
+                max-height: min(50vh, 320px);
+            }
+
+            .history-filters {
+                grid-template-columns: 1fr;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+
+            .history-filter-input {
+                padding: 10px 12px;
+                font-size: 14px;
             }
 
             .add-product-form {
@@ -1096,6 +1278,21 @@
 
             .scanner-container {
                 max-width: 100%;
+            }
+
+            .data-panel-modal .modal-content {
+                width: calc(100vw - 24px);
+                padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+            }
+
+            .data-panel-actions {
+                gap: 8px;
+            }
+
+            .data-panel-actions button {
+                min-width: 84px;
+                padding: 8px 11px;
+                font-size: 12px;
             }
         }
 
@@ -1134,12 +1331,27 @@
 
     <!-- 数据管理面板 - 简化版 -->
     <div class="data-manager collapsed" id="dataManager" style="display: none;">
-        <div class="data-toggle" id="dataToggle" onclick="toggleDataManager()" title="点击展开/折叠">💾</div>
+        <div class="data-toggle" id="dataToggle" onclick="toggleDataManager()" title="打开数据面板">💾 数据</div>
         <div class="data-status" id="dataStatus">本地存储</div>
         <div class="data-actions">
             <button onclick="exportSimpleData()" title="导出数据给其他店员">📥 导出</button>
             <button onclick="importSimpleData()" title="导入其他店员的数据">📤 导入</button>
             <button onclick="openBackupModal()" title="查看自动备份">📁 备份</button>
+        </div>
+    </div>
+
+    <div class="modal data-panel-modal" id="dataPanelModal">
+        <div class="modal-content">
+            <div class="modal-header">💾 数据管理</div>
+            <div style="font-size: 12px; color: #666; line-height: 1.5;">
+                手机端使用独立面板，避免底部按钮被遮挡。
+            </div>
+            <div class="data-panel-actions">
+                <button class="btn" onclick="exportSimpleData(); closeDataPanelModal();" style="background: #e6f4ff; color: #1677ff;">📥 导出</button>
+                <button class="btn" onclick="importSimpleData(); closeDataPanelModal();" style="background: #f6ffed; color: #389e0d;">📤 导入</button>
+                <button class="btn" onclick="closeDataPanelModal(); openBackupModal();" style="background: #fff7e6; color: #d48806;">📁 备份</button>
+                <button class="btn" onclick="closeDataPanelModal()" style="background: #f0f0f0;">关闭</button>
+            </div>
         </div>
     </div>
 
@@ -1380,8 +1592,45 @@
 
     <!-- 交易记录弹窗 -->
     <div class="modal" id="historyModal">
-        <div class="modal-content" style="min-width: 500px;">
+        <div class="modal-content" style="min-width: min(500px, calc(100vw - 24px)); max-width: calc(100vw - 24px);">
             <div class="modal-header" id="historyModalHeader" style="cursor: move; user-select: none; padding: 10px; margin: -10px -10px 20px -10px; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, #722ed1 0%, #9b4bdb 100%); color: white;">📋 今日交易记录（可拖动）</div>
+            <div class="history-filters">
+                <input
+                    type="text"
+                    id="historyKeywordInput"
+                    class="history-filter-input"
+                    placeholder="关键词：客户姓名 / 时间 / 商品名"
+                    oninput="showHistory()"
+                >
+                <input
+                    type="number"
+                    id="historyAmountMin"
+                    class="history-filter-input"
+                    placeholder="最低金额"
+                    step="0.01"
+                    oninput="showHistory()"
+                >
+                <input
+                    type="number"
+                    id="historyAmountMax"
+                    class="history-filter-input"
+                    placeholder="最高金额"
+                    step="0.01"
+                    oninput="showHistory()"
+                >
+                <input
+                    type="datetime-local"
+                    id="historyTimeStart"
+                    class="history-filter-input"
+                    oninput="showHistory()"
+                >
+                <input
+                    type="datetime-local"
+                    id="historyTimeEnd"
+                    class="history-filter-input"
+                    oninput="showHistory()"
+                >
+            </div>
             <div class="history-list" id="historyList">
                 <!-- 历史记录 -->
             </div>
@@ -1394,7 +1643,7 @@
 
     <!-- 交易详情弹窗 -->
     <div class="modal" id="historyDetailModal">
-        <div class="modal-content" style="min-width: 600px;">
+        <div class="modal-content" style="min-width: min(520px, calc(100vw - 24px)); max-width: calc(100vw - 24px); padding: 22px;">
             <div class="modal-header">📄 交易详情</div>
             <div id="historyDetailContent">
                 <!-- 交易详情内容 -->
@@ -3561,8 +3810,26 @@
         async function startWithLocalStorage() {
             await startWithIndexedDB();
         }
+
+        function isMobileLayout() {
+            return window.matchMedia('(max-width: 768px)').matches;
+        }
+
+        function openDataPanelModal() {
+            document.getElementById('dataPanelModal').classList.add('active');
+        }
+
+        function closeDataPanelModal() {
+            document.getElementById('dataPanelModal').classList.remove('active');
+        }
+
         // 切换数据管理面板展开/折叠
         function toggleDataManager() {
+            if (isMobileLayout()) {
+                openDataPanelModal();
+                return;
+            }
+
             const manager = document.getElementById('dataManager');
             manager.classList.toggle('collapsed');
         }
@@ -10545,7 +10812,17 @@
                         <td>
                             <div class="quantity-control">
                                 <button onclick="changeQuantity(${item.id}, -1)">-</button>
-                                <span>${item.quantity}</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value="${item.quantity}"
+                                    inputmode="numeric"
+                                    aria-label="${item.name} 数量"
+                                    oninput="handleQuantityInput(${item.id}, this.value)"
+                                    onblur="commitQuantityInput(${item.id}, this)"
+                                    onkeydown="handleQuantityInputKeydown(event, ${item.id}, this)"
+                                >
                                 <button onclick="changeQuantity(${item.id}, 1)">+</button>
                             </div>
                         </td>
@@ -10570,6 +10847,60 @@
                 } else {
                     updateCart();
                 }
+            }
+        }
+
+        function setQuantity(id, nextQuantity) {
+            const item = cart.find(i => i.id === id);
+            if (!item) return;
+
+            const parsedQuantity = Number.parseInt(nextQuantity, 10);
+            if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+                removeFromCart(id);
+                return;
+            }
+
+            item.quantity = parsedQuantity;
+            updateCart();
+        }
+
+        function handleQuantityInput(id, value) {
+            const inputValue = String(value).replace(/[^\d]/g, '');
+            const item = cart.find(i => i.id === id);
+            const input = document.activeElement;
+
+            if (input && input.tagName === 'INPUT') {
+                input.value = inputValue;
+            }
+
+            if (inputValue === '') {
+                return;
+            }
+
+            const parsedQuantity = Number.parseInt(inputValue, 10);
+            if (Number.isFinite(parsedQuantity) && parsedQuantity > 0 && item) {
+                item.quantity = parsedQuantity;
+                document.getElementById('totalItems').textContent = cart.reduce((sum, cartItem) => sum + cartItem.quantity, 0);
+                document.getElementById('totalPrice').textContent = cart.reduce((sum, cartItem) => sum + (cartItem.price * cartItem.quantity), 0).toFixed(2);
+                persistCartState();
+            }
+        }
+
+        function commitQuantityInput(id, input) {
+            const parsedQuantity = Number.parseInt(input.value, 10);
+            if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+                removeFromCart(id);
+                return;
+            }
+
+            setQuantity(id, parsedQuantity);
+        }
+
+        function handleQuantityInputKeydown(event, id, input) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                commitQuantityInput(id, input);
+                input.blur();
             }
         }
 
@@ -10682,21 +11013,62 @@
         // 显示交易记录
         function showHistory() {
             const list = document.getElementById('historyList');
+            const keyword = (document.getElementById('historyKeywordInput')?.value || '').trim().toLowerCase();
+            const minAmount = parseFloat(document.getElementById('historyAmountMin')?.value);
+            const maxAmount = parseFloat(document.getElementById('historyAmountMax')?.value);
+            const startTimeValue = document.getElementById('historyTimeStart')?.value || '';
+            const endTimeValue = document.getElementById('historyTimeEnd')?.value || '';
+            const startTime = startTimeValue ? new Date(startTimeValue).getTime() : Number.NaN;
+            const endTime = endTimeValue ? new Date(endTimeValue).getTime() : Number.NaN;
+
+            const filteredHistory = history.filter((record) => {
+                const customerName = String(record.customerName || '').toLowerCase();
+                const timeText = String(record.time || '').toLowerCase();
+                const orderId = String(record.orderId || '').toLowerCase();
+                const itemNames = (record.items || []).map((item) => String(item.name || '').toLowerCase()).join(' ');
+                const total = Number(record.total || 0);
+                const recordTime = Number.isFinite(record.createdAt)
+                    ? record.createdAt
+                    : new Date(record.time || '').getTime();
+
+                const keywordMatched = !keyword ||
+                    customerName.includes(keyword) ||
+                    timeText.includes(keyword) ||
+                    orderId.includes(keyword) ||
+                    itemNames.includes(keyword);
+
+                const minMatched = Number.isNaN(minAmount) || total >= minAmount;
+                const maxMatched = Number.isNaN(maxAmount) || total <= maxAmount;
+                const startMatched = Number.isNaN(startTime) || (Number.isFinite(recordTime) && recordTime >= startTime);
+                const endMatched = Number.isNaN(endTime) || (Number.isFinite(recordTime) && recordTime <= endTime);
+
+                return keywordMatched && minMatched && maxMatched && startMatched && endMatched;
+            });
 
             if (history.length === 0) {
                 list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无交易记录</p>';
+            } else if (filteredHistory.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #999; padding: 32px 20px;">没有符合条件的历史订单</p>';
             } else {
-                list.innerHTML = history.map((h, index) => `
+                list.innerHTML = filteredHistory.map((h) => {
+                    const index = history.indexOf(h);
+                    return `
                     <div class="history-item" onclick="showHistoryDetail(${index})" style="cursor: pointer;">
                         <div>
                             <div>${h.time}</div>
+                            ${h.customerName ? `
+                            <div style="font-size: 12px; color: #722ed1; margin-top: 4px; font-weight: 500;">
+                                客户：${h.customerName}
+                            </div>
+                            ` : ''}
                             <div style="font-size: 12px; color: #666; margin-top: 4px;">
                                 ${h.items.length} 种商品，共 ${h.items.reduce((sum, i) => sum + i.quantity, 0)} 件
                             </div>
                         </div>
                         <div class="history-amount">¥${h.total.toFixed(2)}</div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             document.getElementById('historyModal').classList.add('active');
@@ -10711,50 +11083,50 @@
             
             // 生成商品列表 HTML
             const itemsHtml = record.items.map(item => `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 500;">${item.name}</div>
-                        <div style="font-size: 12px; color: #999; margin-top: 2px;">单价：¥${item.price.toFixed(2)}</div>
+                <div style="display: flex; justify-content: space-between; gap: clamp(8px, 2.6vw, 10px); padding: clamp(6px, 1.8vw, 7px) 0; border-bottom: 1px solid #f0f0f0; align-items: center;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; font-size: clamp(13px, 3.6vw, 14px); word-break: break-all;">${item.name}</div>
+                        <div style="font-size: clamp(10px, 2.8vw, 11px); color: #999; margin-top: 2px;">单价：¥${item.price.toFixed(2)}</div>
                     </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 14px;">× ${item.quantity}</div>
-                        <div style="font-weight: bold; color: #f5222d; margin-top: 4px;">¥${(item.price * item.quantity).toFixed(2)}</div>
+                    <div style="text-align: right; white-space: nowrap;">
+                        <div style="font-size: clamp(11px, 3vw, 12px);">× ${item.quantity}</div>
+                        <div style="font-size: clamp(13px, 3.6vw, 14px); font-weight: bold; color: #f5222d; margin-top: 3px;">¥${(item.price * item.quantity).toFixed(2)}</div>
                     </div>
                 </div>
             `).join('');
             
             content.innerHTML = `
-                <div style="padding: 20px 0;">
-                    <div style="margin-bottom: 20px;">
-                        <div style="color: #999; font-size: 14px;">交易时间</div>
-                        <div style="font-size: 16px; margin-top: 5px;">${record.time}</div>
+                <div style="padding: clamp(6px, 1.8vw, 8px) 0 0;">
+                    <div style="margin-bottom: clamp(12px, 3vw, 14px);">
+                        <div style="color: #999; font-size: clamp(11px, 3vw, 12px);">交易时间</div>
+                        <div style="font-size: clamp(13px, 3.6vw, 14px); margin-top: 4px; word-break: break-all;">${record.time}</div>
                     </div>
                     
                     ${record.customerName ? `
-                    <div style="margin-bottom: 20px; padding: 15px; background: #fff7e6; border-radius: 6px;">
-                        <div style="color: #fa8c16; font-size: 14px; margin-bottom: 5px;">👤 客户姓名</div>
-                        <div style="font-size: 18px; font-weight: 500;">${record.customerName}</div>
+                    <div style="margin-bottom: clamp(12px, 3vw, 14px); padding: clamp(9px, 2.4vw, 10px) clamp(10px, 3vw, 12px); background: #fff7e6; border-radius: 6px;">
+                        <div style="color: #fa8c16; font-size: clamp(11px, 3vw, 12px); margin-bottom: 4px;">👤 客户姓名</div>
+                        <div style="font-size: clamp(14px, 4vw, 15px); font-weight: 500; word-break: break-all;">${record.customerName}</div>
                     </div>
                     ` : ''}
                     
-                    <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 6px;">
-                        <div style="color: #666; font-size: 14px; margin-bottom: 10px;">商品明细</div>
+                    <div style="margin-bottom: clamp(12px, 3vw, 14px); padding: clamp(9px, 2.4vw, 10px) clamp(10px, 3vw, 12px); background: #f5f5f5; border-radius: 6px;">
+                        <div style="color: #666; font-size: clamp(11px, 3vw, 12px); margin-bottom: 8px;">商品明细</div>
                         ${itemsHtml}
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #e6f7ff; border-radius: 6px; margin-bottom: 10px;">
-                        <div style="font-size: 16px; font-weight: 500;">合计金额</div>
-                        <div style="font-size: 24px; font-weight: bold; color: #f5222d;">¥${record.total.toFixed(2)}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: clamp(10px, 2.8vw, 11px) clamp(10px, 3vw, 12px); background: #e6f7ff; border-radius: 6px; margin-bottom: 8px; gap: 12px;">
+                        <div style="font-size: var(--detail-label-font); font-weight: 500;">合计金额</div>
+                        <div style="font-size: var(--detail-value-font); font-weight: bold; color: #f5222d; white-space: nowrap;">¥${record.total.toFixed(2)}</div>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f6ffed; border-radius: 6px; margin-bottom: 10px;">
-                        <div style="font-size: 16px; font-weight: 500;">实收金额</div>
-                        <div style="font-size: 20px; font-weight: bold; color: #52c41a;">¥${record.payment.toFixed(2)}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: clamp(10px, 2.8vw, 11px) clamp(10px, 3vw, 12px); background: #f6ffed; border-radius: 6px; margin-bottom: 8px; gap: 12px;">
+                        <div style="font-size: var(--detail-label-font); font-weight: 500;">实收金额</div>
+                        <div style="font-size: clamp(15px, 4.2vw, 18px); font-weight: bold; color: #52c41a; white-space: nowrap;">¥${record.payment.toFixed(2)}</div>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #fff7e6; border-radius: 6px;">
-                        <div style="font-size: 16px; font-weight: 500;">找零金额</div>
-                        <div style="font-size: 20px; font-weight: bold; color: #fa8c16;">¥${record.change.toFixed(2)}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: clamp(10px, 2.8vw, 11px) clamp(10px, 3vw, 12px); background: #fff7e6; border-radius: 6px; gap: 12px;">
+                        <div style="font-size: var(--detail-label-font); font-weight: 500;">找零金额</div>
+                        <div style="font-size: clamp(15px, 4.2vw, 18px); font-weight: bold; color: #fa8c16; white-space: nowrap;">¥${record.change.toFixed(2)}</div>
                     </div>
                 </div>
             `;
