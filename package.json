@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "sync:apk-www": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\sync-apk-www.ps1",
+    "build:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\build-android.ps1"
+  },
+  "dependencies": {
+    "@ericblade/quagga2": "^1.12.1",
+    "cordova": "^13.0.0",
+    "cordova-android": "^12.0.1",
+    "cordova-js": "^6.1.0"
+  }
+}

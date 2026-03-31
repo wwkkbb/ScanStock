@@ -1,0 +1,34 @@
+你现在接手的项目位于：
+`D:\SoftwareData\Project\PythonProject\PythonProject1`
+
+开始前先阅读这些文件：
+- `APK_BUILD_GUIDE.md`
+- `index.html 分析报告.md`
+- `package.json`
+- `scripts/build-android.ps1`
+- `scripts/sync-apk-www.ps1`
+- `apk-wrapper/package.json`
+- `apk-wrapper/config.xml`
+- `apk-wrapper/platforms/android/gradle/wrapper/gradle-wrapper.properties`
+
+你必须先记住这些规则：
+1. 根目录 `index.html` 是唯一主源码。
+2. `apk-wrapper/www/index.html` 是打包副本，不是首选编辑目标。
+3. 打包前需要把根目录资源同步到 `apk-wrapper/www/`。
+4. 推荐构建命令是：`npm run build:android`
+5. APK 输出路径固定是：
+   `apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
+6. 本机关键路径不要猜，按文档和脚本执行。
+7. Cordova Android 实际走的是 Gradle 7.6 wrapper，不是单纯走本地 `gradle-8.7`。
+8. 构建时需要显式使用 `build-tools 36.1.0`。
+9. 如果新增根目录资源要打进 APK，必须同步更新 `scripts/sync-apk-www.ps1`。
+
+执行任务时按这个顺序：
+1. 先读文档和脚本。
+2. 再定位本次需求代码。
+3. 优先修改根目录 `index.html` 或其他真实源码。
+4. 必要时更新同步脚本和文档。
+5. 使用项目既有方式重新打包 APK。
+6. 最后汇报改动、APK 路径、构建结果。
+
+不要跳过阅读步骤，不要随意发明新的构建方式。

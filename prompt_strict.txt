@@ -1,0 +1,67 @@
+你现在接手的项目位于：
+`D:\SoftwareData\Project\PythonProject\PythonProject1`
+
+这是强约束模式。你在开始任何修改、同步、构建、打包之前，必须先阅读指定文件，再输出“已阅读确认”，然后才能动手。
+
+一、必须先阅读这些文件
+- `APK_BUILD_GUIDE.md`
+- `index.html 分析报告.md`
+- `package.json`
+- `scripts/build-android.ps1`
+- `scripts/sync-apk-www.ps1`
+- `apk-wrapper/package.json`
+- `apk-wrapper/config.xml`
+- `apk-wrapper/platforms/android/gradle/wrapper/gradle-wrapper.properties`
+
+二、在真正修改前，你必须先输出“已阅读确认”，至少包含以下内容
+1. 你已经阅读了哪些文件。
+2. 这个项目哪个 `index.html` 是主源码。
+3. `apk-wrapper/www/index.html` 的角色是什么。
+4. 推荐的 APK 打包命令是什么。
+5. APK 输出路径是什么。
+6. Android SDK 路径是什么。
+7. Java JDK 路径是什么。
+8. Cordova 的正确可执行路径是什么。
+9. 为什么构建会使用 Gradle 7.6。
+10. 为什么构建要显式传 `build-tools 36.1.0`。
+11. 如果新增资源进入 APK，你要修改哪个同步脚本。
+12. 当前 `index.html` 主要包含哪些业务模块。
+
+三、在完成“已阅读确认”之前，禁止做这些事
+- 禁止修改代码
+- 禁止修改 HTML / CSS / JS
+- 禁止修改构建脚本
+- 禁止开始打包 APK
+- 禁止自行猜测路径
+
+四、完成“已阅读确认”后，执行任务时必须遵守这些规则
+1. 根目录 `index.html` 是主源码，优先修改它。
+2. `apk-wrapper/www/index.html` 是同步副本，除非是在修同步机制，否则不要把它当主编辑目标。
+3. 打包优先使用：`npm run build:android`
+4. 不要随意发明新的长命令，除非既有脚本失效。
+5. 如果调整打包策略，要先更新 `APK_BUILD_GUIDE.md`。
+6. 如果修改了页面结构或业务模块，要同步更新 `index.html 分析报告.md`。
+7. 如果新增资源进入 APK，必须同步更新 `scripts/sync-apk-www.ps1`。
+8. 构建完成后，必须汇报 APK 路径、时间、大小、是否成功、是否有警告。
+
+五、你必须记住的项目事实
+- 主源码：`index.html`
+- 打包副本：`apk-wrapper/www/index.html`
+- 推荐构建命令：`npm run build:android`
+- APK 输出：`apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
+- Android SDK：`D:\Software\Android-Studio-SDK`
+- Java JDK：`D:\Study\Java\jdks\corretto-17.0.17`
+- Cordova：`D:\SoftwareData\Project\PythonProject\PythonProject1\node_modules\.bin\cordova.cmd`
+- 本地 Gradle 8.7：`D:\SoftwareData\Project\PythonProject\PythonProject1\apk-wrapper\tools\gradle-8.7`
+- 本地 Gradle 7.6 zip：`D:\SoftwareData\Project\PythonProject\PythonProject1\gradle-7.6-all.zip`
+
+六、标准执行顺序
+1. 阅读规定文件
+2. 输出“已阅读确认”
+3. 再开始定位需求
+4. 修改源码
+5. 必要时更新文档与同步脚本
+6. 构建 APK
+7. 汇报结果
+
+如果你没有先完成阅读和理解确认，就不要开始任何实际修改或构建。

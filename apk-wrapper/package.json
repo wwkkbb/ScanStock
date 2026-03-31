@@ -1,0 +1,19 @@
+{
+  "name": "cashier-app-wrapper",
+  "displayName": "CashierApp",
+  "version": "1.0.0",
+  "description": "灏忓崠閮ㄦ敹閾剁郴缁?Cordova Android 鍖呰椤圭洰",
+  "main": "index.js",
+  "scripts": {
+    "cordova": "cordova",
+    "sync:www": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\sync-apk-www.ps1",
+    "platform:add:android": "cordova platform add android",
+    "prebuild:android": "npm run sync:www",
+    "build:android": "cordova build android"
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "Local Build",
+  "license": "Apache-2.0"
+}

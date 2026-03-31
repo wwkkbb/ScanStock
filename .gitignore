@@ -1,0 +1,30 @@
+# IDE
+.idea/
+
+# Dependencies
+node_modules/
+apk-wrapper/node_modules/
+
+# Local caches
+.npm-cache/
+
+# Temporary files
+.codex-tmp-*.js
+index_temp.html
+
+# Local toolchain archives
+gradle-7.6-all.zip
+apk-wrapper/tools/
+
+# Android / Cordova build outputs
+*.apk
+*.aab
+apk-wrapper/platforms/android/.gradle/
+apk-wrapper/platforms/android/app/build/
+apk-wrapper/platforms/android/CordovaLib/build/
+
+# Allow selected Android native files that contain manual changes
+!apk-wrapper/platforms/android/CordovaLib/src/org/apache/cordova/engine/SystemWebChromeClient.java
+!apk-wrapper/platforms/android/app/src/main/AndroidManifest.xml
+!apk-wrapper/platforms/android/app/src/main/res/xml/file_paths.xml
+!apk-wrapper/platforms/android/gradle/wrapper/gradle-wrapper.properties

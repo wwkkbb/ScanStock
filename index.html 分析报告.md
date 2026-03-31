@@ -1,380 +1,258 @@
 # index.html 分析报告
 
-> 更新时间：2026-03-30
+更新时间：2026-03-31
 
-## 概览
+## 1. 文件定位
 
-当前项目是一个单文件收银页面应用，主体仍为 `index.html`，集成了以下能力：
+当前项目的核心业务几乎都在根目录的 `index.html` 中完成。
+
+它同时包含：
+- 页面结构 HTML
+- 主要样式 CSS
+- 前端业务逻辑 JavaScript
+- 本地存储、订单、备份、导入导出、扫码、拍照等功能
+
+后续维护时，要把它当作单文件前端应用入口，而不是普通静态首页。
+
+## 2. 源码与 APK 的关系
+
+根目录 `index.html` 是唯一主源码。
+
+Cordova 打包时真正进入 APK 的页面副本在：
+- `apk-wrapper/www/index.html`
+
+这份副本由脚本自动同步：
+- `scripts/sync-apk-www.ps1`
+
+因此后续改页面时应遵守：
+- 优先改根目录 `index.html`
+- 不把 `apk-wrapper/www/index.html` 当成主编辑目标
+- 如果新增根目录资源要打进 APK，需要同步更新 `scripts/sync-apk-www.ps1`
+
+## 3. 当前页面功能概览
+
+`index.html` 现在已经不是简单收银页，而是一个完整的本地化收银单页应用，主要包含这些模块：
 
 - 商品管理
-- 搜索与扫码收银
-- 交易记录
-- `IndexedDB` 本地持久化
-- 自动备份 / 手动备份 / 应急备份
-- 商品图片管理
-- 可选范围的导入 / 导出
-
-当前版本的关键架构变化：
-
-- 默认使用 `IndexedDB` 作为主存储
-- 自动备份规则为“15 天且数据有变化”
-- 图片已从商品和备份快照中拆分，改为 `images + imageId`
-- 历史订单已加入 `deviceId + orderId`
-- 导入时支持“商品覆盖、历史合并”
-- 导出时支持“仅商品 / 仅历史 / 商品+历史”
-
-## 当前存储架构
-
-### 1. IndexedDB
-
-数据库名：`cashierDB`
-
-对象仓库：
-
-- `products`
-  - 保存当前商品列表
-  - 结构：`{ key: 'current', items: [...] }`
-- `history`
-  - 保存当前交易记录
-  - 结构：`{ key: 'current', items: [...] }`
-- `backups`
-  - 保存备份列表
-  - 结构：`{ key: 'list', items: [...] }`
-- `meta`
-  - 保存系统元数据
-  - 典型键：
-    - `backupBaseline`
-    - `deviceProfile`
-    - `imageRefMigration`
-    - `historyOrderMigration`
-- `images`
-  - 保存商品图片实体
-  - 商品和备份通过 `imageId` 引用图片
-
-### 2. localStorage 的当前角色
-
-`localStorage` 不再承担主数据存储职责，仅保留迁移辅助用途：
-
-- 首次启动时读取旧版 `products/history/autoBackups`
-- 迁移成功后写入 `idbMigrated = 1`
-
-主业务数据、备份数据、订单基线、设备信息都已迁入 `IndexedDB`。
-
-## 数据模型
-
-### 商品
-
-运行时商品对象：
-
-```js
-{
-  id: number | string,
-  name: string,
-  price: number,
-  code: string,
-  barcode: string,
-  imageId: string,
-  photo: string
-}
-```
-
-说明：
-
-- `photo` 只在运行时用于页面渲染
-- 持久化到 `IndexedDB.products` 时，不再保存 `photo`
-- 持久化后只保留 `imageId`
-
-### 图片
-
-`IndexedDB.images` 中的图片对象：
-
-```js
-{
-  key: 'img_xxx',
-  id: 'img_xxx',
-  checksum: 'xxx',
-  dataUrl: 'data:image/jpeg;base64,...',
-  createdAt: 1774851869340,
-  lastUsedAt: 1774851869340
-}
-```
-
-说明：
-
-- 当前图片实体仍以 `dataUrl` 形式保存
-- 但图片已不再进入商品持久化记录和备份快照
-- 备份仅通过 `imageId` 引用图片
-
-### 交易记录
-
-当前交易记录已不再只是简单历史数组，而是带设备和订单唯一标识：
-
-```js
-{
-  orderId: string,
-  deviceId: string,
-  createdAt: number,
-  time: 'YYYY-MM-DD HH:mm:ss',
-  items: CartItem[],
-  total: number,
-  payment: number,
-  change: number,
-  customerName: string
-}
-```
-
-说明：
-
-- `deviceId` 标识订单来自哪台设备
-- `orderId` 唯一标识一笔订单
-- 导入历史时按 `orderId` 去重合并
-
-### 设备信息
-
-设备信息保存在：
-
-- `meta > deviceProfile`
-
-结构：
-
-```js
-{
-  deviceId: 'dev_xxx',
-  createdAt: 1774852000000
-}
-```
-
-说明：
-
-- 首次启动自动生成
-- 当前实现未单独提供 `deviceName`
-- 导出文件会携带 `deviceProfile`
-
-### 备份
-
-```js
-{
-  id: string,
-  type: 'auto' | 'manual' | 'emergency',
-  timestamp: number,
-  date: string,
-  dateText: 'YYYY-MM-DD HH:mm:ss',
-  products: ProductSnapshot[],
-  history: HistoryRecord[]
-}
-```
-
-其中 `products` 快照结构已改为只保存图片引用：
-
-```js
-{
-  id: number | string,
-  name: string,
-  price: number,
-  code: string,
-  barcode: string,
-  imageId: string,
-  createdAt: number | undefined,
-  updatedAt: number | undefined,
-  deleted: boolean | undefined
-}
-```
-
-## 自动备份机制
-
-自动备份触发条件必须同时满足：
-
-1. 距离上次备份时间大于等于 15 天
-2. 商品或交易记录的哈希发生变化
-
-基线数据存放在：
-
-- `meta > backupBaseline`
-
-结构：
-
-```js
-{
-  key: 'backupBaseline',
-  value: {
-    lastBackupTime: number,
-    lastProductsHash: string,
-    lastHistoryHash: string
-  }
-}
-```
-
-备份类型：
-
-- `auto`
-  - 系统自动创建
-- `manual`
-  - 用户点击“立即备份”创建
-- `emergency`
-  - 恢复备份或导入数据前自动创建
-
-## 图片引用迁移
-
-第二阶段已完成图片引用迁移：
-
-- 启动时检查旧商品和旧备份中是否仍包含 `photo`
-- 如果存在，则将图片抽取到 `images`
-- 商品和备份中的 `photo` 转换为 `imageId`
-- 迁移标记写入：
-  - `meta > imageRefMigration`
-
-同时已加入孤儿图片清理：
-
-- 当前商品未引用
-- 所有备份也未引用
-
-满足以上条件的图片会从 `images` 中删除。
-
-## 历史订单唯一标识与迁移
-
-当前历史订单已完成唯一标识升级：
-
-- 每笔新订单创建时自动生成 `orderId`
-- 每条历史记录都带 `deviceId`
-- 启动时会将旧历史记录补齐：
-  - `orderId`
-  - `deviceId`
-  - `createdAt`
-
-迁移标记写入：
-
-- `meta > historyOrderMigration`
-
-## 导入 / 导出机制
-
-### 导出
-
-当前导出不再固定全量导出，而是先弹出“导出数据”弹窗，支持 3 种范围：
-
-- `仅商品信息`
-- `仅历史数据`
-- `商品信息 + 历史数据`
-
-导出文件结构：
-
-```js
-{
-  products: [],
-  history: [],
-  deviceProfile: {
-    deviceId: 'dev_xxx'
-  },
-  exportTime: '2026-03-30T08:00:00.000Z',
-  version: '1.4',
-  source: '店员A导出',
-  exportScope: {
-    products: true,
-    history: false
-  },
-  summary: {
-    productCount: 120,
-    historyCount: 0
-  }
-}
-```
-
-说明：
-
-- 商品导出仍带 `photo`，便于跨设备导入时保留图片
-- 历史导出携带 `orderId` 和 `deviceId`
-- `exportScope` 用于明确文件包含范围
-- `summary` 用于导入确认弹窗快速展示
-
-### 导入
-
-当前导入支持按范围选择：
-
-- `导入商品信息`
-- `导入历史数据`
-
-规则如下：
-
-- 商品信息
-  - 仅当用户勾选且文件中商品不为空时导入
-  - 执行方式：覆盖当前商品资料
-- 历史数据
-  - 仅当用户勾选且文件中历史不为空时导入
-  - 执行方式：按 `orderId` 合并去重
-- 空数据项
-  - 自动跳过
-  - 不会清空本地已有数据
-- 两项都不选
-  - 不允许确认导入
-
-导入前仍会自动创建 `emergency` 备份。
-
-## 当前主要功能模块
-
-### 商品管理
-
-- 新增商品
-- 删除商品
-- 商品排序
-- 拼音首字母简码生成
-- 商品图片上传、换图、删图
-
-### 搜索与扫码
-
-- 商品名 / 简码 / 条码搜索
+- 商品搜索
 - 扫码枪输入识别
 - 摄像头扫码
-- 连续扫码模式
+- 商品拍照与图片管理
+- 购物车与数量编辑
+- 结算与找零
+- 历史订单查看
+- 历史订单搜索筛选
+- 数据导出 / 导入
+- 自动备份 / 手动备份 / 应急备份
+- 手机端适配布局
+- Cordova APK 内运行支持
 
-### 购物车与结算
+## 4. UI 结构梳理
 
-- 添加商品到购物车
-- 修改数量
-- 结算
-- 找零计算
-- 小票控制台输出
+页面大致分成这些区域：
 
-### 数据管理
+### 4.1 左侧商品管理区
 
-- 范围导出 JSON
-- 范围导入 JSON
-- 查看备份
-- 手动备份
+主要职责：
+- 展示商品列表
+- 新增商品
+- 维护商品名称、价格、简码、条码
+- 管理商品图片
+
+常见关联函数：
+- `renderProductList()`
+- `addProduct()`
+- `saveProducts()`
+
+### 4.2 右侧收银区
+
+主要职责：
+- 搜索商品
+- 加入购物车
+- 展示购物车条目
+- 支持加减数量与直接编辑数量
+- 发起结算
+
+常见关联函数：
+- `addToCart()`
+- `updateCart()`
+- `openCheckout()`
+- `checkout()`
+
+### 4.3 交易记录区
+
+当前能力：
+- 查看历史订单
+- 列表中显示交易时间、客户姓名、商品件数、总金额
+- 点进单条记录后查看完整交易详情
+- 支持历史搜索
+
+当前搜索维度：
+- 关键词搜索
+- 金额范围搜索
+- 时间范围搜索
+
+核心函数：
+- `showHistory()`
+- `showHistoryDetail(index)`
+
+### 4.4 数据管理区
+
+页面左下角有数据管理入口按钮。
+
+当前入口命名：
+- `💾 数据`
+
+桌面端行为：
+- 点击后展开本地数据操作区
+
+手机端行为：
+- 点击后弹出独立数据面板
+
+相关能力：
+- 导出
+- 导入
+- 备份管理
+
+核心函数：
+- `toggleDataManager()`
+- `openDataPanelModal()`
+- `closeDataPanelModal()`
+- `exportSimpleData()`
+- `importSimpleData()`
+- `openBackupModal()`
+
+## 5. 数据层结构
+
+当前项目以 `IndexedDB` 为主存储，不再依赖 `localStorage` 承担核心业务数据。
+
+### 5.1 主要运行时变量
+
+脚本中较关键的全局状态包括：
+
+- `products`
+- `cart`
+- `history`
+- `deviceProfile`
+
+这些变量分别代表：
+- 商品列表
+- 当前购物车
+- 历史订单
+- 当前设备身份信息
+
+### 5.2 IndexedDB 的角色
+
+当前数据库负责保存：
+- 商品
+- 历史订单
+- 备份
+- 元信息
+- 图片
+- 购物车状态
+
+从业务角度看，`index.html` 已经实现了一个完整的前端本地数据库应用。
+
+### 5.3 localStorage 的角色
+
+`localStorage` 现在主要用于迁移兼容或辅助逻辑，不再是主存储。
+
+## 6. 订单与历史记录设计
+
+历史订单记录中，当前重点字段包括：
+
+- `orderId`
+- `deviceId`
+- `createdAt`
+- `time`
+- `items`
+- `total`
+- `payment`
+- `change`
+- `customerName`
+
+这意味着当前订单体系已经支持：
+- 唯一订单标识
+- 多设备来源区分
+- 客户姓名记录
+- 金额统计
+- 后续按时间和金额做筛选
+
+历史列表页现在已经支持：
+- 列表层显示客户姓名
+- 详情层显示客户姓名
+- 关键词 / 金额 / 时间范围筛选
+
+## 7. 数据导入导出与备份
+
+当前数据管理能力已经比较完整：
+
+- 导出商品
+- 导出历史订单
+- 导出商品 + 历史订单
+- 导入商品
+- 导入历史订单
+- 查看自动备份
+- 创建手动备份
+- 导入前自动创建应急备份
 - 恢复备份
-- 删除备份
 
-## 当前实现状态总结
+维护这里时要特别注意：
+- 导入逻辑不要误清空现有数据
+- 历史订单要按 `orderId` 合并去重
+- 备份恢复前要先创建应急备份
 
-### 已完成
+## 8. 手机端适配现状
 
-- 默认启动进入本地数据库模式
-- `products/history/backups/meta/images` 全部接入 `IndexedDB`
-- 自动备份、手动备份、应急备份可用
-- 旧 `localStorage` 数据迁移可用
-- 旧图片字段迁移到 `images + imageId` 可用
-- 历史记录已补齐 `deviceId + orderId`
-- 导入规则已升级为“商品覆盖 + 历史合并”
-- 导出 / 导入支持范围选择
-- 备份时间显示统一为 `YYYY-MM-DD HH:mm:ss`
+当前页面已经做过多轮手机端适配，重点包括：
 
-### 当前仍保留的现实限制
+- 响应式字号与间距
+- 结算区缩放
+- 交易记录按钮位置优化
+- 历史详情弹窗压缩
+- 数据管理入口与独立面板分离
 
-- 图片实体目前仍以 `dataUrl` 形式保存在 `IndexedDB.images`
-- 这已经避免了“每份备份重复保存图片”，但图片体积仍大于二进制 `Blob` 方案
-- 当前设备信息只有 `deviceId`，尚未增加用户可读的 `deviceName`
+尤其要注意：
+- 手机端和桌面端的数据管理交互逻辑不同
+- 手机端使用独立弹窗，桌面端使用左下角展开
+- `isMobileLayout()` 不只是样式判断，也会影响交互行为
 
-## 建议
+## 9. 与 APK 打包直接相关的事实
 
-当前项目已经从“轻量 localStorage 方案”升级为：
+当前 Web 页面会通过 Cordova 打包进入 Android APK。
 
-- `IndexedDB` 主存储
-- 图片引用式备份
-- 订单唯一标识
-- 可选范围导入 / 导出
+关键事实：
+- 主源码：`index.html`
+- 同步目标：`apk-wrapper/www/index.html`
+- 构建命令：`npm run build:android`
+- 输出 APK：`apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
 
-如果后续继续演进，建议按这个顺序：
+因此只改 `index.html` 还不够，最终要经过：
+- 同步
+- 构建
+- 产物确认
 
-1. 图片从 `dataUrl` 继续迁到 `Blob`
-2. 为设备增加可读 `deviceName`
-3. 备份管理界面增加存储占用统计
-4. 导出时增加“是否包含图片”的明确选项
-5. 将 `products/history` 从整表快照进一步细化为更规范的数据访问层
+## 10. 后续维护建议
+
+如果下次继续让 Codex 接手，建议它先读：
+- `APK_BUILD_GUIDE.md`
+- `index.html 分析报告.md`
+- `package.json`
+- `scripts/build-android.ps1`
+- `scripts/sync-apk-www.ps1`
+- `apk-wrapper/config.xml`
+- `apk-wrapper/platforms/android/gradle/wrapper/gradle-wrapper.properties`
+
+后续如果继续迭代，这个文件建议重点更新三类内容：
+- 新增了哪些业务模块
+- 哪些入口在手机端和桌面端行为不同
+- 哪些功能已经依赖 IndexedDB、备份、订单唯一标识等机制
+
+## 11. 一句话结论
+
+当前 `index.html` 已经是这个项目的前端主应用文件。
+
+维护这个项目时，不应该把它看成单纯的页面，而应该把它看成：
+- 一个单文件前端应用
+- 一个本地数据库驱动的收银系统
+- 一个需要同步到 Cordova 包装层并最终打进 APK 的业务入口
