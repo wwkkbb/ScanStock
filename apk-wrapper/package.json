@@ -2,7 +2,7 @@
   "name": "cashier-app-wrapper",
   "displayName": "CashierApp",
   "version": "1.0.0",
-  "description": "灏忓崠閮ㄦ敹閾剁郴缁?Cordova Android 鍖呰椤圭洰",
+  "description": "Cordova Android wrapper for CashierApp",
   "main": "index.js",
   "scripts": {
     "cordova": "cordova",
@@ -15,5 +15,15 @@
     "ecosystem:cordova"
   ],
   "author": "Local Build",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "cordova-plugin-android-permissions": "^1.1.5",
+    "cordova-plugin-file": "^8.0.0"
+  },
+  "cordova": {
+    "plugins": {
+      "cordova-plugin-file": {},
+      "cordova-plugin-android-permissions": {}
+    }
+  }
 }

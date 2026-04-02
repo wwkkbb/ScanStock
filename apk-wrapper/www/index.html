@@ -828,7 +828,8 @@
             position: fixed;
             top: 76px;
             left: 20px;
-            max-width: min(320px, calc(100vw - 40px));
+            right: 20px;
+            max-width: min(600px, calc(100vw - 40px));
             background: #52c41a;
             color: white;
             padding: 15px 25px;
@@ -837,6 +838,8 @@
             z-index: 3000;
             display: none;
             animation: slideIn 0.3s ease;
+            word-wrap: break-word;
+            line-height: 1.5;
         }
 
         .scan-toast.active {
@@ -1294,6 +1297,44 @@
                 padding: 8px 11px;
                 font-size: 12px;
             }
+
+            /* 备份管理弹窗移动端适配 */
+            #backupModal .modal-content {
+                width: calc(100vw - 24px);
+                max-width: calc(100vw - 24px);
+                min-width: 0;
+                max-height: calc(var(--app-height) - 24px);
+                overflow-y: auto;
+                padding: 16px 14px;
+            }
+
+            #backupModal .backup-list {
+                max-height: calc(var(--app-height) - 200px) !important;
+            }
+
+            #backupModal .backup-item > div {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 10px !important;
+            }
+
+            #backupModal .backup-item button {
+                padding: 8px 16px;
+                font-size: 13px;
+                flex: 1;
+                min-width: 0;
+            }
+
+            #backupModal .modal-actions {
+                display: flex;
+                gap: 10px;
+            }
+
+            #backupModal .modal-actions button {
+                flex: 1;
+                padding: 10px;
+                font-size: 14px;
+            }
         }
 
         @media (orientation: landscape) and (max-height: 600px) {
@@ -1336,7 +1377,7 @@
         <div class="data-actions">
             <button onclick="exportSimpleData()" title="导出数据给其他店员">📥 导出</button>
             <button onclick="importSimpleData()" title="导入其他店员的数据">📤 导入</button>
-            <button onclick="openBackupModal()" title="查看自动备份">📁 备份</button>
+            <button onclick="openBackupModal()" title="查看应用内备份">📁 备份</button>
         </div>
     </div>
 
@@ -1357,10 +1398,11 @@
 
     <!-- 备份管理弹窗 -->
     <div class="modal" id="backupModal">
-        <div class="modal-content" style="min-width: 500px; max-width: 90%;">
+        <div class="modal-content" style="min-width: min(500px, calc(100vw - 24px)); max-width: calc(100vw - 24px); width: min(500px, calc(100vw - 24px));">
             <div class="modal-header">📁 备份管理</div>
             <p style="color: #666; margin-bottom: 15px; font-size: 13px;">
-                系统会在数据变化后自动备份（间隔15天），最多保留 10 个自动备份。<br>
+                自动导出会在满足“距上次自动导出已满15天，且数据有变化”时生成一份 JSON 文件。<br>
+                <span id="backupStorageHint">“立即备份”和应急备份只保存在应用内，用于恢复误操作。</span><br>
                 <span style="color: #ff4d0f;">⚠️ 导入/恢复操作前会自动创建应急备份，方便错误时还原。</span>
             </p>
             <div class="backup-list" id="backupList" style="max-height: 400px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
@@ -2597,7 +2639,7 @@
         }
 
         // 显示扫描提示
-        function showScanToast(message, isError) {
+        function showScanToast(message, isError, duration = 3000) {
             const toast = document.getElementById('scanToast');
             const text = document.getElementById('scanToastText');
             
@@ -2610,7 +2652,7 @@
             
             setTimeout(() => {
                 toast.classList.remove('active');
-            }, 3000);
+            }, duration);
         }
 
         // 打开条形码绑定弹窗
@@ -2760,7 +2802,7 @@
             if (!useFileSystem || !dataFileHandle) {
                 console.log('未使用文件系统，保存到 IndexedDB');
                 await dbSaveAllProducts(products);
-                await checkAndDoAutoBackup();
+                await checkAndDoAutoExport();
                 return;
             }
 
@@ -2771,7 +2813,7 @@
                 await writable.close();
                 console.log('✅ 商品数据已保存到文件');
                 updateDataStatus('已保存: ' + new Date().toLocaleTimeString());
-                await checkAndDoAutoBackup();
+                await checkAndDoAutoExport();
             } catch (err) {
                 console.error('保存商品数据失败:', err);
                 alert('保存失败: ' + err.message);
@@ -2782,7 +2824,7 @@
         async function saveHistoryToFile() {
             if (!useFileSystem || !historyFileHandle) {
                 await dbSaveAllHistory(history);
-                await checkAndDoAutoBackup();
+                await checkAndDoAutoExport();
             } else {
                 try {
                     const writable = await historyFileHandle.createWritable();
@@ -2790,7 +2832,7 @@
                     await writable.write(dataStr);
                     await writable.close();
                     console.log('✅ 历史记录已保存到文件');
-                    await checkAndDoAutoBackup();
+                    await checkAndDoAutoExport();
                 } catch (err) {
                     console.error('保存历史记录失败:', err);
                 }
@@ -2873,7 +2915,20 @@
             };
 
             const payload = await buildExportPayload(options);
-            downloadExportPayload(payload);
+            let fileResult = null;
+            if (isCordovaRuntime()) {
+                try {
+                    fileResult = await exportPayloadWithPicker(payload, 'manual');
+                } catch (error) {
+                    console.error('导出到设备文件失败:', error);
+                    closeExportOptionsModal();
+                    alert(`导出失败：${error?.message || '未能打开系统保存窗口或写入文件。'}`);
+                    return;
+                }
+            } else {
+                downloadExportPayload(payload);
+            }
+
             closeExportOptionsModal();
 
             const scopeText = options.products && options.history
@@ -2881,7 +2936,12 @@
                 : options.products
                     ? '仅商品信息'
                     : '仅历史数据';
-            showScanToast(`✅ 导出成功（${scopeText}）`, false);
+
+            if (isCordovaRuntime() && fileResult?.location) {
+                showScanToast(`✅ 导出成功（${scopeText}） 已保存到你选择的位置`, false, 4000);
+            } else {
+                showScanToast(`✅ 导出成功（${scopeText}）文件已下载`, false, 3000);
+            }
         }
 
         // 导出备份
@@ -2935,7 +2995,6 @@
                     // 保存到新位置
                     await saveDataToFile();
                     await saveHistoryToFile();
-                    await updateBackupBaseline(Date.now());
 
                     renderProductList();
                     updateCart();
@@ -2948,8 +3007,8 @@
             input.click();
         }
 
-        // 自动备份相关配置
-        const AUTO_BACKUP_DAYS = 15; // 自动备份间隔天数
+        // 自动导出与应用内备份配置
+        const AUTO_EXPORT_DAYS = 15; // 自动导出间隔天数
         const MAX_AUTO_BACKUPS = 10; // 最多保留的自动备份数量
         let backupSequence = 0;
         const APP_DB_NAME = 'cashierDB';
@@ -2963,6 +3022,9 @@
             cart: 'cart'
         };
         let appDbPromise = null;
+        let cordovaReadyPromise = null;
+        let nativeExportSequence = 0;
+        const nativeExportRequests = new Map();
         
         // 计算数据简单哈希（用于检测变化）
         function simpleHash(data) {
@@ -2998,6 +3060,195 @@
 
             return appDbPromise;
         }
+
+        window.__cashierNativeExportResolve = function(requestId, payloadJson) {
+            const pending = nativeExportRequests.get(requestId);
+            if (!pending) return;
+            nativeExportRequests.delete(requestId);
+
+            try {
+                pending.resolve(payloadJson ? JSON.parse(payloadJson) : {});
+            } catch (error) {
+                pending.reject(error);
+            }
+        };
+
+        window.__cashierNativeExportReject = function(requestId, message) {
+            const pending = nativeExportRequests.get(requestId);
+            if (!pending) return;
+            nativeExportRequests.delete(requestId);
+            pending.reject(new Error(message || '导出失败'));
+        };
+
+        function isCordovaRuntime() {
+            // 检查 window.cordova 是否存在，或者 URL 是否以 file:// 开头（APK 环境）
+            const hasCordova = typeof window !== 'undefined' && !!window.cordova;
+            const isFileProtocol = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+            return hasCordova || isFileProtocol;
+        }
+
+        function waitForCordovaReady() {
+            if (!isCordovaRuntime()) {
+                console.log('不是 Cordova 环境，跳过就绪检测');
+                return Promise.resolve(false);
+            }
+
+            if (window.__cashierCordovaReady === true) {
+                console.log('Cordova 已就绪（缓存）');
+                return Promise.resolve(true);
+            }
+
+            if (cordovaReadyPromise) {
+                console.log('Cordova 就绪检测进行中...');
+                return cordovaReadyPromise;
+            }
+
+            console.log('开始等待 Cordova deviceready...');
+            cordovaReadyPromise = new Promise((resolve) => {
+                const resolveReady = () => {
+                    console.log('✅ Cordova deviceready 事件触发');
+                    window.__cashierCordovaReady = true;
+                    resolve(true);
+                };
+
+                // 监听 deviceready 事件
+                document.addEventListener('deviceready', resolveReady, { once: true });
+                
+                // 10秒超时（原来是4秒，可能不够）
+                setTimeout(() => {
+                    const isReady = window.__cashierCordovaReady === true;
+                    if (!isReady) {
+                        console.warn('⏱️ Cordova deviceready 超时（10秒）');
+                        console.warn('   cordova.file 可用:', !!window.cordova?.file);
+                        console.warn('   cordova.plugins 可用:', !!window.cordova?.plugins);
+                    }
+                    resolve(isReady);
+                }, 10000);
+            });
+
+            return cordovaReadyPromise;
+        }
+
+        function waitForNativeExporter(timeoutMs = 8000) {
+            if (!isCordovaRuntime()) {
+                return Promise.resolve(false);
+            }
+
+            if (window.CashierNativeExporter) {
+                return Promise.resolve(true);
+            }
+
+            return new Promise((resolve) => {
+                const start = Date.now();
+                const timer = setInterval(() => {
+                    if (window.CashierNativeExporter) {
+                        clearInterval(timer);
+                        resolve(true);
+                        return;
+                    }
+
+                    if (Date.now() - start >= timeoutMs) {
+                        clearInterval(timer);
+                        resolve(false);
+                    }
+                }, 150);
+            });
+        }
+
+        // 检查文件系统状态并输出详细信息
+        async function diagnoseFileSystem() {
+            const results = {
+                isCordova: isCordovaRuntime(),
+                cordovaObj: typeof window.cordova,
+                cordovaReady: window.__cashierCordovaReady,
+                protocol: window.location?.protocol,
+                nativeExporter: !!window.CashierNativeExporter,
+                filePlugin: !!window.cordova?.file
+            };
+            
+            console.log('=== 文件系统诊断 ===', results);
+            return results;
+        }
+
+        function formatFileTimestamp(value = Date.now()) {
+            const date = new Date(value);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+        }
+
+        function buildExportFilename(kind = 'manual') {
+            const label = kind === 'auto' ? '收银数据自动导出' : '收银数据手动导出';
+            return `${label}_${formatFileTimestamp()}_${Date.now()}.json`;
+        }
+
+        function callCashierExporter(method, payload, kind = 'manual') {
+            return new Promise((resolve, reject) => {
+                if (!window.CashierNativeExporter || typeof window.CashierNativeExporter[method] !== 'function') {
+                    reject(new Error('原生导出桥不可用'));
+                    return;
+                }
+
+                const requestId = `native_export_${++nativeExportSequence}`;
+                const filename = buildExportFilename(kind);
+                const mimeType = 'application/json';
+                const requestPayload = JSON.stringify({
+                    requestId,
+                    filename,
+                    mimeType,
+                    content: JSON.stringify(payload, null, 2)
+                });
+
+                nativeExportRequests.set(requestId, { resolve, reject });
+
+                try {
+                    window.CashierNativeExporter[method](requestPayload);
+                } catch (error) {
+                    nativeExportRequests.delete(requestId);
+                    reject(error);
+                }
+            });
+        }
+
+        async function exportPayloadToDownloads(payload) {
+            await diagnoseFileSystem();
+            const exporterReady = await waitForNativeExporter();
+            if (!exporterReady) {
+                throw new Error('原生导出桥未就绪');
+            }
+            return callCashierExporter('saveToDownloads', payload, 'auto');
+        }
+
+        async function exportPayloadWithPicker(payload, kind = 'manual') {
+            await diagnoseFileSystem();
+            const exporterReady = await waitForNativeExporter();
+            if (!exporterReady) {
+                throw new Error('原生导出桥未就绪');
+            }
+            return callCashierExporter('createDocumentAndWrite', payload, kind);
+        }
+
+        function updateBackupStorageHint() {
+            const hint = document.getElementById('backupStorageHint');
+            if (!hint) return;
+
+            if (isCordovaRuntime()) {
+                hint.innerHTML = 'APK 版“立即备份”和应急备份只保存在应用内；手动导出会弹出系统保存窗口，自动导出会写入下载目录。';
+                return;
+            }
+
+            hint.textContent = '浏览器版“立即备份”和应急备份只保存在本地数据库；“导出”会下载 JSON 文件。';
+        }
+
+        document.addEventListener('deviceready', () => {
+            window.__cashierCordovaReady = true;
+            updateBackupStorageHint();
+        }, { once: true });
 
         function withStore(storeName, mode, handler) {
             return openAppDB().then((db) => new Promise((resolve, reject) => {
@@ -3163,13 +3414,13 @@
             return serialized;
         }
 
-        async function dbGetBackupBaseline() {
-            const record = await idbGetRecord(APP_DB_STORES.meta, 'backupBaseline');
+        async function dbGetAutoExportBaseline() {
+            const record = await idbGetRecord(APP_DB_STORES.meta, 'autoExportBaseline');
             return record?.value || null;
         }
 
-        async function dbSetBackupBaseline(value) {
-            await idbPutRecord(APP_DB_STORES.meta, { key: 'backupBaseline', value });
+        async function dbSetAutoExportBaseline(value) {
+            await idbPutRecord(APP_DB_STORES.meta, { key: 'autoExportBaseline', value });
         }
 
         async function dbGetDeviceProfile() {
@@ -3186,7 +3437,7 @@
                 idbGetRecord(APP_DB_STORES.products, 'current'),
                 idbGetRecord(APP_DB_STORES.history, 'current'),
                 idbGetRecord(APP_DB_STORES.backups, 'list'),
-                dbGetBackupBaseline()
+                dbGetAutoExportBaseline()
             ]);
 
             return Boolean(
@@ -3207,9 +3458,9 @@
             const savedProducts = localStorage.getItem('products');
             const savedHistory = localStorage.getItem('history');
             const savedBackups = localStorage.getItem('autoBackups');
-            const lastBackupTime = localStorage.getItem('lastBackupTime');
-            const lastProductsHash = localStorage.getItem('lastProductsHash');
-            const lastHistoryHash = localStorage.getItem('lastHistoryHash');
+            const lastAutoExportTime = localStorage.getItem('lastBackupTime');
+            const lastAutoExportProductsHash = localStorage.getItem('lastProductsHash');
+            const lastAutoExportHistoryHash = localStorage.getItem('lastHistoryHash');
 
             if (savedProducts) {
                 try {
@@ -3232,7 +3483,7 @@
                 try {
                     const backups = JSON.parse(savedBackups).map((backup) => ({
                         ...backup,
-                        type: backup.type || 'auto'
+                        type: backup.type || 'manual'
                     }));
                     await dbSaveBackups(backups);
                 } catch (error) {
@@ -3240,11 +3491,11 @@
                 }
             }
 
-            if (lastBackupTime || lastProductsHash || lastHistoryHash) {
-                await dbSetBackupBaseline({
-                    lastBackupTime: parseInt(lastBackupTime || '0'),
-                    lastProductsHash: lastProductsHash || '',
-                    lastHistoryHash: lastHistoryHash || ''
+            if (lastAutoExportTime || lastAutoExportProductsHash || lastAutoExportHistoryHash) {
+                await dbSetAutoExportBaseline({
+                    lastAutoExportTime: parseInt(lastAutoExportTime || '0'),
+                    lastAutoExportProductsHash: lastAutoExportProductsHash || '',
+                    lastAutoExportHistoryHash: lastAutoExportHistoryHash || ''
                 });
             }
 
@@ -3379,11 +3630,11 @@
             });
         }
 
-        async function updateBackupBaseline(timestamp = Date.now()) {
-            await dbSetBackupBaseline({
-                lastBackupTime: timestamp,
-                lastProductsHash: simpleHash(products),
-                lastHistoryHash: simpleHash(history)
+        async function updateAutoExportBaseline(timestamp = Date.now()) {
+            await dbSetAutoExportBaseline({
+                lastAutoExportTime: timestamp,
+                lastAutoExportProductsHash: simpleHash(products),
+                lastAutoExportHistoryHash: simpleHash(history)
             });
         }
 
@@ -3422,35 +3673,46 @@
             await dbSaveAllHistory(history);
         }
 
-        // 检查并执行自动备份
-        async function checkAndDoAutoBackup() {
+        async function performAutoExport() {
+            const payload = await buildExportPayload({ products: true, history: true });
+            const fileResult = await exportPayloadToDownloads(payload);
+            await updateAutoExportBaseline(Date.now());
+            return fileResult;
+        }
+
+        // 检查并执行自动导出
+        async function checkAndDoAutoExport() {
             const now = Date.now();
-            const baseline = await dbGetBackupBaseline();
-            const lastBackupTime = parseInt(baseline?.lastBackupTime || '0');
-            const lastProductsHash = baseline?.lastProductsHash || '';
-            const lastHistoryHash = baseline?.lastHistoryHash || '';
+            const baseline = await dbGetAutoExportBaseline();
+            const lastAutoExportTime = parseInt(baseline?.lastAutoExportTime || '0');
+            const lastAutoExportProductsHash = baseline?.lastAutoExportProductsHash || '';
+            const lastAutoExportHistoryHash = baseline?.lastAutoExportHistoryHash || '';
             
-            // 计算当前数据哈希
             const currentProductsHash = simpleHash(products);
             const currentHistoryHash = simpleHash(history);
-            
-            // 检查是否需要备份（超过15天且数据有变化）
-            const daysSinceLastBackup = (now - lastBackupTime) / (1000 * 60 * 60 * 24);
-            const dataChanged = (currentProductsHash !== lastProductsHash) || (currentHistoryHash !== lastHistoryHash);
-            
-            if (daysSinceLastBackup >= AUTO_BACKUP_DAYS && dataChanged) {
-                console.log('执行自动备份...');
-                await createAutoBackup('auto');
-                
-                // 更新备份记录
-                await updateBackupBaseline(now);
-                
-                showScanToast(`✅ 已自动备份 (${formatDateTime(now)})`, false);
+
+            const daysSinceLastAutoExport = (now - lastAutoExportTime) / (1000 * 60 * 60 * 24);
+            const dataChanged = (currentProductsHash !== lastAutoExportProductsHash) || (currentHistoryHash !== lastAutoExportHistoryHash);
+
+            if (daysSinceLastAutoExport >= AUTO_EXPORT_DAYS && dataChanged) {
+                console.log('执行自动导出...');
+                try {
+                    const fileResult = await performAutoExport();
+                    const exportTime = formatDateTime(now);
+                    if (fileResult?.path) {
+                        showScanToast(`✅ 已自动导出 (${exportTime})`, false, 4000);
+                    } else {
+                        showScanToast(`✅ 已自动导出 (${exportTime})`, false, 4000);
+                    }
+                } catch (error) {
+                    console.error('自动导出失败:', error);
+                    showScanToast('⚠️ 自动导出失败，应用内数据未丢失', true, 5000);
+                }
             }
         }
         
         // 创建备份
-        async function createAutoBackup(type = 'auto') {
+        async function createAutoBackup(type = 'manual') {
             const timestamp = Date.now();
             const backup = {
                 id: `${timestamp}-${backupSequence++}`,
@@ -3485,14 +3747,14 @@
             try {
                 await createAutoBackup('manual');
                 await renderBackupList();
-                showScanToast('手动备份已创建', false);
+                showScanToast('✅ 手动备份已创建（仅保存在应用内）', false, 3000);
             } catch (error) {
                 console.error('手动备份失败:', error);
-                alert('手动备份失败：浏览器存储空间可能已满，请先导出数据或删除旧备份。');
+                alert('手动备份失败：' + (error.message || '未知错误'));
             }
         }
         
-        // 获取所有自动备份
+        // 获取所有应用内备份
         async function getAutoBackups() {
             try {
                 return await dbGetAllBackups();
@@ -3532,7 +3794,6 @@
             
             // 保存到 IndexedDB
             await persistCurrentData();
-            await updateBackupBaseline(Date.now());
             
             // 刷新界面
             renderProductList();
@@ -3580,7 +3841,6 @@
             }
 
             const sections = [
-                { type: 'auto', title: '💾 自动备份', emptyText: '暂无自动备份', background: '#ffffff' },
                 { type: 'manual', title: '🖐 手动备份', emptyText: '暂无手动备份', background: '#fffbe6' },
                 { type: 'emergency', title: '🚨 应急备份', emptyText: '暂无应急备份', background: '#fff2f0' }
             ];
@@ -3761,7 +4021,6 @@
             
             // 保存到 IndexedDB
             await persistCurrentData();
-            await updateBackupBaseline(Date.now());
             
             // 更新界面
             renderProductList();
@@ -3796,15 +4055,15 @@
             cart = await dbLoadCart();
 
             // 初始化备份记录（首次使用）
-            if (!await dbGetBackupBaseline()) {
-                await updateBackupBaseline(Date.now());
+            if (!await dbGetAutoExportBaseline()) {
+                await updateAutoExportBaseline(Date.now());
             }
 
             renderProductList();
             updateCart();
             
-            // 检查是否需要自动备份
-            await checkAndDoAutoBackup();
+            // 检查是否需要自动导出
+            await checkAndDoAutoExport();
         }
 
         async function startWithLocalStorage() {
@@ -3840,6 +4099,7 @@
 // 初始化
         async function init() {
             updateAppHeight();
+            updateBackupStorageHint();
             window.addEventListener('resize', handleViewportLayoutChange);
             window.addEventListener('orientationchange', handleViewportLayoutChange);
             window.visualViewport?.addEventListener('resize', handleViewportLayoutChange);
@@ -3908,7 +4168,7 @@
                 await saveDataToFile();
             } else {
                 await dbSaveAllProducts(products);
-                await checkAndDoAutoBackup();
+                await checkAndDoAutoExport();
             }
         }
 
@@ -11378,6 +11638,8 @@
         // 启动应用
         init();
     </script>
+    <!-- Cordova 脚本 -->
+    <script src="cordova.js"></script>
 </body>
 
 </html>

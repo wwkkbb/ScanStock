@@ -10,12 +10,18 @@
     <allow-navigation href="*" />
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
+    <plugin name="cordova-plugin-file" spec="^8.0.0" />
+    <plugin name="cordova-plugin-android-permissions" spec="^1.1.5" />
     <config-file parent="/*" target="AndroidManifest.xml">
         <uses-permission android:name="android.permission.CAMERA" />
         <uses-permission android:name="android.permission.INTERNET" />
+        <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+        <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     </config-file>
+    <preference name="AndroidPersistentFileLocation" value="Compatibility" />
     <preference name="android-minSdkVersion" value="24" />
     <preference name="android-targetSdkVersion" value="34" />
     <preference name="AndroidInsecureFileModeEnabled" value="true" />
     <preference name="AndroidXEnabled" value="true" />
 </widget>
+

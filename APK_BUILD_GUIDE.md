@@ -1,56 +1,56 @@
-﻿# APK Build Guide
+# APK Build Guide
 
 ## Purpose
-This file records the exact workflow, paths, commands, and caveats needed for this project.
-After reading this guide, an AI or human should be able to:
-- modify the web app
-- sync the web assets used by Cordova
-- rebuild the Android APK
-- understand which file is the source of truth
-- know the SDK/JDK/Gradle paths used on this machine
-- diagnose the known build issues that already occurred in this project
+This guide records the current build workflow, storage behavior, and Android-specific caveats for this project.
 
-## Source of truth
-Only edit these source files directly unless there is a specific reason not to:
+After reading it, a human or AI should be able to:
+- edit the real source files
+- sync web assets into the Cordova wrapper
+- rebuild the Android APK
+- understand backup vs export behavior
+- know which Android native file was manually modified
+
+## Source Of Truth
+Edit these files directly unless there is a specific reason not to:
 - `index.html`
 - `pic.png`
 
 Do not treat `apk-wrapper/www/index.html` as the primary editable file.
-That file is a generated/synced copy used by the Cordova wrapper.
+That file is only the synced copy used by the Cordova wrapper.
 
-## Sync rule
-The Cordova APK uses files under:
+## Sync Rule
+The APK uses files under:
 - `apk-wrapper/www/`
 
-The root web assets are synced into that folder by:
+The sync script is:
 - `scripts/sync-apk-www.ps1`
 
 Current sync scope:
 - `index.html`
 - `pic.png`
 
-Manual sync command from project root:
+Manual sync command:
 ```powershell
 npm run sync:apk-www
 ```
 
-## Main build command
+## Main Build Command
 Preferred command from project root:
 ```powershell
 npm run build:android
 ```
 
-This now calls:
+That command runs:
 - `scripts/build-android.ps1`
 
-That script does all of the following automatically:
+The script does all of the following:
 1. syncs root assets into `apk-wrapper/www`
-2. sets Android SDK / Java / Gradle environment variables
+2. sets Android SDK, Java, Gradle, and npm cache environment variables
 3. copies the local `gradle-7.6-all.zip` into the Gradle wrapper cache
-4. runs Cordova Android build with the correct build-tools override
-5. verifies the output APK exists
+4. builds the Cordova Android app with the required build-tools override
+5. verifies the APK output exists
 
-## Important local paths
+## Important Paths
 Project root:
 - `D:\SoftwareData\Project\PythonProject\PythonProject1`
 
@@ -60,10 +60,10 @@ Android SDK:
 Java JDK:
 - `D:\Study\Java\jdks\corretto-17.0.17`
 
-Local Gradle 8.7 folder:
+Local Gradle 8.7:
 - `D:\SoftwareData\Project\PythonProject\PythonProject1\apk-wrapper\tools\gradle-8.7`
 
-Local Gradle 7.6 wrapper zip used by Cordova:
+Local Gradle 7.6 wrapper zip:
 - `D:\SoftwareData\Project\PythonProject\PythonProject1\gradle-7.6-all.zip`
 
 Gradle wrapper cache target:
@@ -72,116 +72,130 @@ Gradle wrapper cache target:
 Cordova executable actually used:
 - `D:\SoftwareData\Project\PythonProject\PythonProject1\node_modules\.bin\cordova.cmd`
 
-## Why Gradle 8.7 exists but the build still uses Gradle 7.6
-This project contains:
+APK output:
+- `apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
+
+## Why Gradle 7.6 Is Still Used
+The project contains:
 - `apk-wrapper/tools/gradle-8.7`
 
-But the actual Cordova Android platform is driven by the wrapper file:
+But Cordova Android actually uses the wrapper defined in:
 - `apk-wrapper/platforms/android/gradle/wrapper/gradle-wrapper.properties`
 
-That file points to:
-- `https://services.gradle.org/distributions/gradle-7.6-all.zip`
+That wrapper points to:
+- `gradle-7.6-all.zip`
 
-So the build uses the Cordova wrapper's Gradle 7.6 distribution.
-Gradle 8.7 is still useful as a local toolchain path, but it does not replace the wrapper distribution by itself.
+So the build still runs on Gradle 7.6.
 
-## Why build-tools 36.1.0 is forced
-Cordova's Android config expects build-tools 33.0.2 by default.
-On this machine, the installed build-tools are:
-- `36.1.0`
-- `37.0.0`
-
-So the build must pass this override:
+## Why Build-Tools 36.1.0 Is Forced
+Cordova Android expects an older default build-tools version.
+On this machine, the installed versions are newer, so the build must pass:
 - `--gradleArg=-PcdvBuildToolsVersion=36.1.0`
 
-That override is already built into `scripts/build-android.ps1`.
+That override is already built into:
+- `scripts/build-android.ps1`
 
-## Current package scripts
+## Current Data Behavior
+This project now clearly separates backup and export.
+
+Application-internal backup:
+- stored in IndexedDB
+- used for manual backup and emergency backup
+- intended for recovery from bad operations
+
+Manual export in APK:
+- opens Android system "Create document" UI
+- user chooses the save location
+- intended for long-term external retention or migration
+
+Automatic export in APK:
+- runs only when both conditions are true:
+  1. at least 15 days passed since the last automatic export
+  2. product or history data changed
+- writes a JSON file into Android Downloads under:
+  - `Downloads/cashier-backups/`
+
+Browser mode:
+- export still downloads a JSON file through the browser
+- backup still stays in IndexedDB
+
+## Android Native Customization
+The APK export behavior is not only web-side now.
+
+Important manual Android change:
+- `apk-wrapper/platforms/android/app/src/main/java/com/cashier/app/MainActivity.java`
+
+That file now contains a native bridge used by the web app to:
+- open Android's system save dialog for manual export
+- save automatic exports into Downloads via Android native APIs
+
+This matters because:
+- if you recreate `platforms/android`, this change will be lost
+- after platform recreation, you must restore or reapply this file change
+
+## Current Package Scripts
 Project root `package.json`:
 - `npm run sync:apk-www`
 - `npm run build:android`
 
-`apk-wrapper/package.json` keeps the Cordova wrapper scripts, but the preferred top-level build entry is the root script above.
+`apk-wrapper/package.json` still exists for the wrapper, but the top-level root commands remain the preferred entry point.
 
-## Output APK path
-Successful debug APK output:
-- `apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
+## Recommended Workflow
+1. Edit root `index.html`.
+2. If needed, do a syntax or logic check.
+3. Run `npm run build:android`.
+4. Install the rebuilt APK.
+5. Verify backup/export behavior on device.
 
-Metadata file:
-- `apk-wrapper/platforms/android/app/build/outputs/apk/debug/output-metadata.json`
-
-## Recommended workflow for future changes
-1. Edit the source file(s) in the project root, usually `index.html`.
-2. If needed, run a syntax check or local validation.
-3. Run `npm run build:android` from the project root.
-4. Install the rebuilt APK from `apk-wrapper/platforms/android/app/build/outputs/apk/debug/app-debug.apk`.
-5. Verify the behavior on device.
-
-## Known problems and fixes
-### Problem: wrong Cordova path
-Wrong path that failed before:
+## Known Problems And Fixes
+### Wrong Cordova path
+Wrong:
 - `apk-wrapper\node_modules\.bin\cordova.cmd`
 
-Correct path:
+Correct:
 - `node_modules\.bin\cordova.cmd`
 
-### Problem: Gradle wrapper tries to download online and times out
-Cause:
-- wrapper uses `gradle-7.6-all.zip`
-- network may timeout or be blocked
+### Gradle wrapper tries to download online and times out
+Fix:
+- keep `gradle-7.6-all.zip` locally
+- let `scripts/build-android.ps1` copy it into wrapper cache before build
 
-Fix used in this project:
-- keep a local copy at `D:\SoftwareData\Project\PythonProject\PythonProject1\gradle-7.6-all.zip`
-- copy it into the wrapper cache before building
-
-### Problem: Gradle wrapper cache lock / exclusive access timeout
+### Gradle cache lock or exclusive access timeout
 Symptom:
 - `waiting for exclusive access to file`
 
-Cause:
-- leftover Java/Gradle process still running after interrupted builds
-
 Fix:
-- stop leftover `java` / `gradle` processes
+- stop leftover Java or Gradle processes
 - rerun the build script
 
-### Problem: Cordova asks for Android build-tools 33.0.2
-Cause:
-- Cordova default config does not match the locally installed SDK versions
-
+### Build-tools version mismatch
 Fix:
-- build with `-PcdvBuildToolsVersion=36.1.0`
+- keep using `-PcdvBuildToolsVersion=36.1.0`
+- do not remove it from the build script
 
-### Problem: PowerShell may corrupt Gradle `-P...=36.1.0` arguments
-Cause:
-- in some clean/build commands, PowerShell parsing can break the literal argument or append extra characters
-
+### Source changed but APK did not reflect the change
 Fix:
-- prefer the existing root command `npm run build:android`
-- if a forced clean is needed, use `cmd /c` to call `gradlew.bat` with the literal argument
+1. confirm `apk-wrapper/www/index.html` was synced
+2. rebuild with `npm run build:android`
+3. confirm the new APK timestamp changed
 
-### Problem: source changed but APK timestamp did not update
-Cause:
-- Gradle may consider previous outputs reusable and skip packaging even after synced web assets changed
+### Manual export fails because native bridge timing is wrong
+Current fix:
+- the web layer waits for the native exporter bridge instead of depending only on `deviceready`
+- the Android side opens the system save dialog on the UI thread
 
-Fix:
-1. confirm `apk-wrapper/platforms/android/app/src/main/assets/www/index.html` already contains the new content
-2. run a forced Gradle clean
-3. rebuild with the normal root command `npm run build:android`
-
-## Notes for AI agents
-When asked to modify and rebuild this project, prefer this sequence:
+## Notes For AI Agents
+When modifying this project:
 1. edit root `index.html`
-2. avoid manually editing `apk-wrapper/www/index.html` unless debugging sync itself
-3. run `npm run build:android`
-4. if build fails, inspect the exact error before changing paths or versions
-5. remember that Cordova build uses wrapper Gradle 7.6, not just `GRADLE_HOME`
-6. remember the APK uses files from `apk-wrapper/www/`, which are generated by sync
+2. avoid editing `apk-wrapper/www/index.html` directly unless debugging sync
+3. remember backup and export are now different behaviors
+4. remember manual and automatic export depend on native code in `MainActivity.java`
+5. if `platforms/android` is recreated, restore the native export bridge
+6. use `npm run build:android` as the preferred build path
 
-## Last known working build strategy
-The last known working build path is:
+## Last Known Working Build Strategy
 ```powershell
 npm run build:android
 ```
 
-Internally, that resolves to the same environment and parameters that previously produced a valid debug APK.
+That command produced a valid debug APK after the native export bridge changes.
